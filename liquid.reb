@@ -365,9 +365,9 @@ REBOL [
 ;----
 ; use following line to determine real code size without comments.
 ;
-; currently around 40 kb ! :-)  which means there is ~70kb of documentation and labels within the source!!
+; currently around 55 kb ! :-)  which means there is as much documentation and structure information within the source!!
 ;----
-; write %stripped-liquid.reb  entab mold  load %liquid.reb
+; write %stripped-liquid.reb  entab replace/all "^^-" "^-"mold  load/header %liquid.reb
 
 
 slim/register [
