@@ -2,8 +2,8 @@ REBOL [
 	; -- Core Header attributes --
 	title: "liquid | dataflow management "
 	file: %liquid.r
-	version: 1.3.0
-	date: 2013-6-20
+	version: 1.3.1
+	date: 2013-10-11
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Dataflow processing kernel.  Supports many computing modes and lazy programming..}
 	web: http://www.revault.org/modules/liquid.rmrk
@@ -260,9 +260,14 @@ REBOL [
 	v1.2.1  2012-11-14 (MOA)
 		-we can now control HOW link resolving is merged with the plug's mud (pipe or container).  See resolve-links? documentation for more details.
 	
-	v1.3.0  2013-06-20
+	v1.3.0 - 2013-06-20
 		-added LINKED-MUD mode to resolve-links?, only usable by pipe-master, doesn't cause processing.
 		-changed license to Apache v2
+	
+		v1.3.1 - 2013-10-11
+			- 'PIPE() in external API now fills plug with value
+			- 'PLUG?() now returns the plug itself instead of true
+			- added new API method: PIPE? to detect if a plug is already a pipe server.
 	}
 	;-  \ history
 
@@ -305,6 +310,7 @@ REBOL [
 		
 	}
 ]
+
 
 
 
@@ -748,17 +754,21 @@ slim/register [
 	;-    pipe()
 	;-----------------------------------------
 	pipe: func [
-		"converts a plug into a pipe"
+		"converts a plug into a pipe, keeps any value it had by default."
 		plug [object!]
+		/only "Do not fill any value in the pipe, also prevents a cleanup on given plug."
 		/with val
 	][
 		vin "pipe()"
-		unless with [
-			val: plug/valve/content plug
-		]
 		vprobe type? :val
 		
-		plug/valve/new-pipe plug val
+		plug/valve/new-pipe plug
+		unless only [
+			unless with [
+				val: plug/valve/content plug
+			]
+			fill plug val
+		]
 		val: none
 		vout
 		
@@ -1013,7 +1023,7 @@ slim/register [
 	;-    plug?()
 	;-----------------
 	plug?: func [
-		plug "returns true if object is based on a liquid plug"
+		plug "returns plug if object is based on a liquid plug, none otherwise"
 	][
 		all [
 			object? plug
@@ -1024,7 +1034,19 @@ slim/register [
 			in plug/valve 'setup
 			in plug/valve 'link
 			in plug/valve 'cleanup
-			true
+			plug
+		]
+	]
+	
+	;-----------------
+	;-    piped?()
+	;-----------------
+	piped?: func [
+		plug "returns plug if object has a pipe server."
+	][
+		all [
+			plug? plug
+			plug? plug/pipe?
 		]
 	]
 	
