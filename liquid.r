@@ -2,8 +2,8 @@ REBOL [
 	; -- Core Header attributes --
 	title: "liquid | dataflow management "
 	file: %liquid.r
-	version: 1.3.1
-	date: 2013-10-11
+	version: 1.3.2
+	date: 2013-10-17
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Dataflow processing kernel.  Supports many computing modes and lazy programming..}
 	web: http://www.revault.org/modules/liquid.rmrk
@@ -268,6 +268,11 @@ REBOL [
 			- 'PIPE() in external API now fills plug with value
 			- 'PLUG?() now returns the plug itself instead of true
 			- added new API method: PIPE? to detect if a plug is already a pipe server.
+	
+		v1.3.2 - 2013-10-17
+			-MAJOR FIX to Pipe handling on Attach.  The pipe server now uses its own value as initial mud, 
+			so that any cleanup receives the current value.  When a new pipe server is built, it uses the source's
+			value for itself.
 	}
 	;-  \ history
 
@@ -310,6 +315,7 @@ REBOL [
 		
 	}
 ]
+
 
 
 
@@ -2663,6 +2669,12 @@ slim/register [
 				; if source doesn't have a pipe, it will get one generated as per its pipe-server-class,
 				; that will be returned to us.
 				pipe-server: source/valve/pipe/always source
+				
+				;---
+				; CHANGED v1.3.2
+				;
+				; keep value from pipe-server or pipe-source when a new pipe is created.
+				pipe-server/mud: any [source/mud source/liquid]
 				
 				;vprint [ "pipe-server type: " type? pipe-server/pipe? ]
 				;vprobe pipe-server/sid
