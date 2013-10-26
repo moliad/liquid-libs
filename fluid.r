@@ -2,8 +2,8 @@ rebol [
 	; -- Core Header attributes --
 	title: "fluid | liquid dialect"
 	file: %fluid.r
-	version: 1.0.3
-	date: 2013-10-16
+	version: 1.0.5
+	date: 2013-10-26
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Creates and simplifies management of liquid networks.}
 	web: http://www.revault.org/modules/fluid.rmrk
@@ -61,6 +61,13 @@ rebol [
 			-changed a few rules to simplify them.
 			-added internal 'PUSH and 'POP functions,
 			-GRAPH-STACK is now part of library directly, instead of being within 'FLOW function
+	
+		v1.0.4 - 2013-10-18
+			-Many bug fixes.
+		
+		v1.0.5 - 2013-10-26
+			-added context merging support with the /using keyword.
+			-context merging now supports paths
 	}
 	;-  \ history
 
@@ -68,17 +75,15 @@ rebol [
 	documentation: {
 		Fluid is a quick and dirty dialect to manage Liquid dataflow networks.
 		
-		For now, he documentation is rough and expects a basic understanding of liquid and dataflow in general.
+		For now, the documentation is rough and expects a basic understanding of liquid and dataflow in general.
 		
 		If you look at fluid code, it might look a bit like normal Rebol code, but it's actually quite different.
 		
-		The code only express an algorithm, it doesn't actually compute it.  Some parts of the dialect might
+		Fluid mostly sets up the dataflow graph, it doesn't actually compute it.  Some parts of the dialect might
 		force a computation, but that is not the norm.
 	}
 	;-  \ documentation
 ]
-
-
 
 
 
@@ -96,7 +101,6 @@ slim/register [
 	slim/open/expose 'utils-words none [ as-lit-word ]
 	slim/open/expose 'utils-blocks none [ popblk: pop ]
 	
-	von
 	
 	;--------------------------
 	;-     fluids:
@@ -123,7 +127,6 @@ slim/register [
 		;lib
 		/extern fluids
 	][
-		von
 		vin "--init--()"
 		catalogue !plug
 		
@@ -140,7 +143,6 @@ slim/register [
 	;- PARSE RULES
 	;
 	;-----------------------------------------------------------------------------------------------------------
-	;-    complex rules
 	
 	.tmp: none
 	
@@ -149,6 +151,7 @@ slim/register [
 	=lt=: as-lit-word <
 	=|=:  as-lit-word |
 	
+	=using=: [ /USING ]
 	
 	=set-issue-fail?=: none
 	=set-issue=: [
@@ -157,6 +160,7 @@ slim/register [
 		( if #":" <> last .tmp [ =set-issue-fail?=: =fail= ] )
 		=set-issue-fail?=
 	] 
+	
 	
 	
 	
@@ -295,18 +299,19 @@ slim/register [
 	;--------------------------
 	probe-graph: funcl [
 		graph-ctx [ object! ]
+		/debug
 	][
-		vin "probe-graph()"
+		vin/always "probe-graph()"
 		foreach word words-of graph-ctx [
 			switch/default word [
 				*catalogue [
-					vprint ["*** graph catalogue: " mold words-of select graph-ctx '*catalogue ]
+					vprint/always ["*** graph catalogue: " mold words-of select graph-ctx '*catalogue ]
 				]
 			][
-				vprint [ "" word " (" get in get in (plug: get in graph-ctx word) 'valve 'type "): " mold content plug ]
+				vprint/always [ "" word " (" get in get in (plug: get in graph-ctx word) 'valve 'type ":" plug/sid"): " mold content plug ]
 			]
 		]
-		vout
+		vout/always
 	]
 	
 	
@@ -339,10 +344,11 @@ slim/register [
 		property: to-word property
 		
 		if any [
-			/always
+			always
 			not in ctx property
 		][
-			ctx: make ctx vprobe reduce [
+			vprint "allocating new graph"
+			ctx: make ctx reduce [
 				set-property none
 			]
 		]
@@ -352,13 +358,14 @@ slim/register [
 		]
 		
 		if fill [
-			unless plug? plug: get in ctx property [
+			unless plug: plug? get in ctx property [
+				vprobe type? :plug
 				vprint "allocating new plug!"
 				set in ctx property (plug: liquify !plug )
+				;probe-graph ctx
 			]
 			plug/valve/fill plug :value
 		]
-		probe-graph ctx
 		vout
 		ctx
 	]
@@ -389,7 +396,7 @@ slim/register [
 		vprobe word
 		
 		value: any [
-			get in graph word
+			select graph word
 			get word
 		]
 		
@@ -415,7 +422,7 @@ slim/register [
 	push: funcl [
 		plug [object!]
 	][
-		vin [ "push(" plug/valve/type ")" ]
+		vin [ "push(" plug/valve/type ":" plug/sid ")" ]
 		append graph-stack plug
 		vout
 	]
@@ -438,6 +445,7 @@ slim/register [
 	pop: funcl [][
 		vin "pop()"
 		plug: popblk graph-stack
+		vprint [ "(" plug/valve/type ":" plug/sid ")" ]
 		vout
 		plug
 	]
@@ -544,6 +552,7 @@ slim/register [
 			return-val: context [] ; what would have been returned if /debug had not been used.
 		]
 		
+		
 
 		
 		;-         =graph=:
@@ -570,7 +579,7 @@ slim/register [
 							unless .subordinate: fetch/plug .word gctx [
 								to-fluid-error [ "word " .word " does not reference a plug" ]
 							]
-							vprint "found plug to link to"
+							vprint ["found plug to link to (" .subordinate/valve/type ":" .subordinate/sid ")"]
 							
 							;---
 							; we push plug on the stack, in case it has a sub graph to link to.
@@ -596,10 +605,7 @@ slim/register [
 								plug: .observer: liquify p
 								if set-word? .word [
 									vprint ["will add plug to graph "  ]
-									extend-gctx .word 
-									gctx: make gctx reduce [
-										.word 'plug
-									]
+									gctx: extend-gctx/with gctx .word plug
 								]
 							][
 								to-fluid-error [ "Plug type ("  ") not found" "... near: ^/ " mold copy/part here 3] 
@@ -609,18 +615,15 @@ slim/register [
 				]
 				opt [ into =graph= ]
 				(
-					vprint "POPING STACK "
+					vprint "Ready to link"
 					.subordinate: .observer
 					.observer: pop
 					
 					link .observer .subordinate
-					probe-graph gctx
+					;if debug [ probe-graph gctx ]
+					vprint ["done linking observer (" .observer/valve/type ":" .observer/sid ") to subordinate (" .subordinate/valve/type ":" .subordinate/sid ")"]
 				)
 			]
-			(
-				probe-graph gctx
-			)
-			; (.observer: pop stack)
 			(vout)
 		]
 		
@@ -638,7 +641,7 @@ slim/register [
 				here:
 							
 				;----
-				;-         liquify and assign plug
+				;-         creating plug
 				[
 					set .word set-word! 
 					set .pclass issue! 
@@ -647,19 +650,18 @@ slim/register [
 						.pclass: to-word rejoin ["!" .pclass]
 						v?? .word
 						v?? .pclass
-						;v?? .links
 						
 						either p: select catalogue .pclass [
+							vprobe type? :p
 							plug: .observer: liquify p
-							gctx: make gctx vprobe reduce [
-								.word 'plug
-							]
-							probe-graph gctx
+							gctx: extend-gctx/with gctx .word plug 
+							
+							;if debug [ probe-graph gctx ]
 						][
 							to-fluid-error [ "Plug type ("  ") not found" "... near: ^/ " mold copy/part here 3] 
 						]
 						
-						probe-graph gctx
+						;if debug [ probe-graph gctx ]
 					)
 					opt [into =graph=] 
 					(vout)
@@ -681,7 +683,7 @@ slim/register [
 						gctx: make gctx vprobe reduce  [
 							.ref .plug 
 						]
-						probe-graph gctx
+						;if debug [ probe-graph gctx ]
 						vout
 					)
 				]
@@ -698,16 +700,10 @@ slim/register [
 						=post-value-rule=: none
 						.value: fetch :.value gctx 
 						vprint type? :.value
-;						any [
-;							select gctx .value
-;							get .value
-;						]
 						switch/default type?/word :.value [
 							function! native! action! [
 								vprint "FUNCTOR"
 								.observer: liquify processor/safe '!functor-fluid :.value
-								
-								.observer/valve/stats .observer
 								
 								gctx: extend-gctx/with gctx .plug-name  .observer
 								
@@ -726,7 +722,7 @@ slim/register [
 							gctx: extend-gctx/fill gctx .plug-name .value
 						]
 						
-						probe-graph gctx
+						;if debug [ probe-graph gctx ]
 						vout
 					)
 				]
@@ -745,31 +741,11 @@ slim/register [
 					)
 					opt  [into =graph=] 
 					(
-						probe-graph gctx
+						;if debug [ probe-graph gctx ]
 						vout
 					)
 				]				
 				
-				
-;				;----
-;				;-         inline functor
-;				| [
-;					set .plug-name set-word! 
-;					set .function any-function!
-;					(
-;						vin "inline class expression."
-;						.function: liquify processor '!inline-fluid to-block .expression
-;						gctx: extend-gctx/with gctx .plug-name  .observer
-;						.observer/valve/stats .observer
-;						
-;						
-;					)
-;					opt  [into =graph=] 
-;					(
-;						probe-graph gctx
-;						vout
-;					)
-;				]				
 				
 				
 				;----
@@ -779,22 +755,15 @@ slim/register [
 					set .value skip
 					(
 						vin "creating or setting container."
-							either plug? :.value [
-								.value: content .value
-								vprint ["value is a plug with value: " mold :.value]
-							][
-								vprint ["value has value: " mold :.value]
-							]
-;						unless in gctx .word [
-;							vprint [".word '" .word " new to graph"]
-;							gctx: make gctx vprobe reduce  [
-;								.word 'liquify '!plug 
-;							]
-;						]
-;						fill get in gctx to-word .word .value
+						either plug? :.value [
+							.value: content .value
+							vprint ["value is a plug with value: " mold :.value]
+						][
+							vprint ["value has value: " mold :.value]
+						]
 						
 						gctx: extend-gctx/fill gctx .word .value
-;						probe-graph gctx
+						;if debug [ probe-graph gctx ]
 						vout
 					)
 				]
@@ -806,14 +775,13 @@ slim/register [
 					set .code block!
 					(
 						vin "CREATING NEW PLUG CLASS."
-						probe-graph gctx
 						.class: to-word head remove back vprobe tail rejoin [ "!" .class ]
 						v?? .class
 						catalogue: make catalogue vprobe reduce [
 							to-set-word .class 'processor to-lit-word .class .code
 						]
 						vprint ["Catalogue: " mold words-of catalogue]
-						probe-graph gctx
+						;if debug [ probe-graph gctx ]
 						vout
 					)
 				]
@@ -840,11 +808,12 @@ slim/register [
 								to-fluid-error "plug doesn't exist"
 							]
 							.observer: .subordinate
-							probe-graph gctx
+							;if debug [ probe-graph gctx ]
 							vout
 						)
 					]
 				]
+				
 				
 				;----
 				;-         piping plugs
@@ -860,15 +829,15 @@ slim/register [
 						(
 							vin "piping plug"
 							either pclient: plug? any [
-								select gctx .pipe-client
-								grab .pipe-client
+								fetch .pipe-client gctx
 							][
+								vprint ["pipe client: (" pclient/valve/type ":" pclient/sid ")" ]
 								;---
 								; generate pipe from the plug
 								unless pserver [
 									either pserver: plug? any [
 										select gctx .pipe-server
-										grab .pipe-server
+										fetch .pipe-server gctx
 									][
 										unless piped? pserver [
 											pipe/only pserver
@@ -877,6 +846,7 @@ slim/register [
 										to-fluid-error [ "Piping allows only plug references: " copy/part here 5 ]
 									]
 								]
+								vprint ["pipe server: (" pserver/valve/type ":" pserver/sid ")" ]
 								either pserver [
 									attach pclient pserver
 								][
@@ -890,6 +860,66 @@ slim/register [
 					]
 				]
 				
+				
+				;----
+				;-         merging contexts (graphs)
+				| [
+					=using=
+					(vprint "USING?:")
+					here: 
+					set .context [ object! | path! | word! ]
+					(
+						vin "Merging context"
+						vprobe type? :.context
+						
+						either all [
+							attempt [
+								switch type?/word .context [
+									object! [
+										ctx: .context
+									]
+									
+									path! [
+										path: .context
+										all [
+											not function? get first path
+											object? ctx: do path
+										]
+									]
+									
+									word! [
+										ctx: fetch .context gctx
+									]
+								]
+							]
+							object? ctx
+							not empty? words: words-of ctx
+						][
+							v?? words
+							foreach word words [
+								either plug? value: get word [
+									gctx: extend-gctx/with gctx word :value
+								][
+									gctx: extend-gctx/fill gctx word :value
+								]
+							]
+						][
+							to-fluid-error "/USING:   Given value does not refer to a context"
+						]
+						vout
+					)
+				]
+				;----
+				;-         merging contexts (graphs)
+				| [
+					/PROBE-GRAPH
+					( 
+						;vprint "PROBE GRAPH" 
+						probe-graph gctx
+					)
+				]
+				
+				
 				; if there is something left... error
 				| here: skip (
 					to-fluid-error [ "Invalid flow... Here: " mold back new-line next new-line (back insert copy/part here 5 to-word ">>>" ) true false ]
@@ -898,10 +928,11 @@ slim/register [
 		
 		]
 		
-		
-		
-		
 		vout
+		
+		.observer: .subordinate: .class: .code: .value: .word: .plug-name: .expression: .ref: .plug: .pclass: none
+		p: plug: user-ctx: selection: graph: here: pclient: pserver: .pipe-server: .pipe-client: .context: none
+		
 		first reduce either debug [[
 			make gctx [
 				*catalogue: make catalogue []
@@ -911,20 +942,7 @@ slim/register [
 			gctx
 			gctx: catalogue: none
 		]]
-		
-		
 	]
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 ]
 
 ;------------------------------------

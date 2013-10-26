@@ -2,8 +2,8 @@ REBOL [
 	; -- Core Header attributes --
 	title: "liquid | dataflow management "
 	file: %liquid.r
-	version: 1.3.2
-	date: 2013-10-17
+	version: 1.3.3
+	date: 2013-10-21
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Dataflow processing kernel.  Supports many computing modes and lazy programming..}
 	web: http://www.revault.org/modules/liquid.rmrk
@@ -35,235 +35,235 @@ REBOL [
 
 	;-  / history
 	history: {
-	v0.0.1 - 0.5.0
-		-several years of prototyping different dataflow systems.
-		-eventually combined into one codebase
-		-eventually merged into A SINGLE base class (out from 4 different & incompatible base classes)
-		-adding of caching, low-level linking, propagation, processing levels.
-		-cycle detection algorythm testing
-		-several stub functions now officially part of api.
+		v0.0.1 - 0.5.0
+			-several years of prototyping different dataflow systems.
+			-eventually combined into one codebase
+			-eventually merged into A SINGLE base class (out from 4 different & incompatible base classes)
+			-adding of caching, low-level linking, propagation, processing levels.
+			-cycle detection algorythm testing
+			-several stub functions now officially part of api.
+		
+		v0.5.1
+			-finalise new piping and mud mechanism
+			
+		v0.5.2
+			-link()/exlusive implementation
 	
-	v0.5.1
-		-finalise new piping and mud mechanism
-		
-	v0.5.2
-		-link()/exlusive implementation
-
-	v0.5.3
-		-add /as to liquify
-		
-	v0.5.4
-		-add stats method to valve.
-		-fully test and enable labeled mode for linking
-		-add valve/links/labels
-		-add valve/links/labeled
-		-finish block optimisation in instigate returning all subordinate values directly.
-		
-	v0.5.5 - 24-Apr-2006/13:13:13
-		-added disregard
-		-rebuilt unlink using disregard (cause v0.5.4 didn't unlink observers! MAJOR BUG)
-		-link() should return an error when trying to link a pipe server using /label (not likely, but for advanced users this must be explicitely disallowed)
-		-support multiple plugs per label
-
-	v0.5.6 - 26-Apr-2006/11:14:34
-		-added /fill refinement to liquify
-
-	v0.5.7 - 27-Apr-2006/3:35:39
-		-removed all double comments (;;) from code
-		-improved comments on valve/setup and explicitely state that we can call link at that point.
-		-added valve/sub()
-		-cycle? now officially part of miscelaneous methods
-		-added /link refinement to liquify
-
-
-	v0.5.8 - 29-Apr-2006/14:31:40
-		-verbose is now off by default, from now on.
-
-
-	v0.5.9 - 29-Apr-2006/15:02:55
-		-fix dirty? state return valur of purify.
-		-fixed propagate as a result of above fix
-
-
-	v0.5.10 - 24-May-2006/17:07:43
-		-added category to valve.  helps in classification.
-		-removed init as default startup state, easy to forget and invalidates dirtyness by default..
-		 better let the user toggle it on knowingly  :-)
-
-	v0.5.11 - 5-Oct-2006/2:27:14
-		-renamed plug! to !plug (no clash with real types)
-		-officially added !node alias to !plug (to ease adoption)
-		-liquify/link properly support single plug! spec (it used to support only a block of plugs)
-		-added linked-container? attribute to !plug
-		-fill now creates a container (simple pipe) rather than a pipe (linked pipe) by default.
-		-added word! clash protection on link labels, so that instigate code can separate labels from actual word! type data (not 100% fault tolerant, but with documentation, it becomes easy to prevent).
-
-	v0.5.12 - 17-Oct-2006/11:58:09
-		-license switch to MIT
-
-	v0.5.13 - 20-Oct-2006/5:31:44
-		-attach() pipe linking method
-		-detach() pipe unlinking method
-		-added support for a block! of subordinates in link utility func.
-
-	v0.6.0 - 1-Nov-2006/11:19:29 (MOA)
-		-quick release cleanup.
-		-version major
-
-	v0.6.1 - 27-Nov-2006/15:01:40 (MOA)
-		-added pipe function, with optional /with refinement.  makes piping more explicit.
-		-fixed linked-container? mode handling here and there.
-
-	v0.6.2 - 12-Dec-2006/22:35:25 (MOA)
-		-fixed a rare linking setup, when you supply none! as the subordinate to create orphaned links.
-
-
-	v0.6.3 - 12-Dec-2006/22:55:18 (MOA)
-
-
-	v0.6.4 - 4-Feb-2007/7:01:06 (MOA)
-		-adding the commit feature.  vastly simplifying many plug uses.
-		-not yet implemented commit, but layed out the design for future compatibility.
-
-
-	v0.6.5 - 19-Feb-2007/22:35:54 (MOA)
-
-	v0.6.5 - 13-Apr-2007/19:02:42 (MOA)
-
-	v0.6.6 - 13-Apr-2007/19:02:58 (MOA)
-
-	v0.6.7 - 20-Apr-2007/2:59:58 (Unknown)
-
-	v0.6.8 - 29-Apr-2007/7:55:52 (Unknown)
-
-	v0.6.9 - 30-Apr-2007/16:56:30 (Unknown)
-		-added insubordinate method.
-		-added /with refinement to liquid
-
-	v0.6.10 - 30-Apr-2007/22:07:40 (Unknown)
-		-now clears sid in destroy (extra mem cleanup)
-
-	v0.6.11 - 11-May-2007/0:46:56 (Unknown)
-		-added reset refinement to link and valve/link
-
-	v0.6.14 - 11-Jul-2007/19:46:17 (MOA)
-
-	v0.6.15 - 15-Jul-2007/0:58:46 (Unknown)
-
-
-	v0.6.17 - 16-Jul-2007/22:57:02 (MOA)
-
-	v0.7.0 - 7-Mar-2009/00:54:04(MOA)
-		-added PIPE-SERVER-CLASS functionality to ease custom pipe management
-		-fixed minor fill bug related to binding in rebol sub-objects
-		
-	v0.7.1 - 8-Mar-2009/05:54:04(MOA)
-		-fixed regression in link() where a word was deleted from the code for some unknown reason, breaking the function on un-piped nodes.
-		-added FROZEN? and related functionality. can be set to a function for powerfull dynamic node freezing.
-		
-	v0.7.2 - 8-Mar-2009/21:25:55(MOA)
-		-officially deprecated and REMOVED SHARED-STATES from the whole module
-		-ON-LINK() 
+		v0.5.3
+			-add /as to liquify
+			
+		v0.5.4
+			-add stats method to valve.
+			-fully test and enable labeled mode for linking
+			-add valve/links/labels
+			-add valve/links/labeled
+			-finish block optimisation in instigate returning all subordinate values directly.
+			
+		v0.5.5 - 24-Apr-2006/13:13:13
+			-added disregard
+			-rebuilt unlink using disregard (cause v0.5.4 didn't unlink observers! MAJOR BUG)
+			-link() should return an error when trying to link a pipe server using /label (not likely, but for advanced users this must be explicitely disallowed)
+			-support multiple plugs per label
 	
-	v0.8.0 - 15-Mar-2009/00:00:00(MOA)
-		-adding stream engine for propagation-style inter-node messaging.
-		-STREAM() added for look-ahead messaging (ask observers to react to us)
-		-ON-STREAM() added to support callbacks when a stream message arrives at a plug.
-		
-	v0.8.1 - 28-Mar-2009/00:00:00(MOA)
-		-PROPAGATE?() added to valve - allows us to optimise lazyness in some advanced plugs
-		-LINK?() regression found and fixed... cycle?() was not being used anymore!
-		
-	v0.8.2 - 02/04/2009/11:13PM(MOA)
-		-the index? of returned instigate() block is now OFFICIALLY the insert position of the linked-container, if any.
-		 this used to be an undefined aspect of liquid, but must now be explicitely handled in any
-		 custom cleanup function.  This was added, since some plugs will need this at the head, while others
-		 will need it at the tail, for processing consistency.
-		 
-	v0.8.3 - 04/04/2009/3:10AM (MOA)
-		-fixed bug in CLEANUP() which didn't use path to access the instigate method.
-		-fixed CYCLE?() bug which tripped over labeled links.
-		-added optional PLUG/PREVIOUS-MUD attribute handling to fill, allows other funcs to detect if fill actually
-		 changed value.
-		-PLUG/PREVIOUS-MUD now set within CLEANUP(), so that multiple fills do not trigger events, until they have been used.
-		-LINKED?() little improvements.
-		
-	v0.8.4 - 27/04/2009/10:37PM (MOA)
-		-plug/mud is now an official store of pre-allocated series, which you do not want to reset (re-allocate) at each process()
-		 no code change, but now an official specification.  so plug/mud is not changed by any function except fill() and related.
-		 
-	v0.8.5 - 03/05/2009/8:15AM (MOA)
-		-added UNLINK() stub function
-		
-	v0.8.6 - 15/09/2009 6:27PM (MOA)
-		-fixed ATTACH() regression which didn't set pipe? on pipe clients ... strange
-		-added 'LIQUID-ERROR-ON-CYCLE? attribute to lib.  this tells liquid to raise an error if 
-		 the LINK?() method detects a cycle?(). prevents unlinked plugs from being silently ignored
-		 and causing frustrating errors (and hard to understand/debug).
-		-Liquid now sets 'LIQUID-ERROR-ON-CYCLE? to true by default, so connection errors will result
-		 in thrown errors... beware.
+		v0.5.6 - 26-Apr-2006/11:14:34
+			-added /fill refinement to liquify
 	
-	v1.0.0 01/10/2010 (MOA)
-		-removed ALL vprint-based debugging to dramatically increase performance. (only !plug/valve/stats remains with vprint).
-		-as I am using this library in a publicly-released application for the first time, and because I've
-		 been actively using liquid successfully in most projects for YEARS, I've decided to sign-off 
-		 on an official reference v1 release.
-		 
-	v1.0.1 17/04/2010 (MOA)
-		-optimised propagate so its ignored when a node is already dirty.
-		-fixed cycle? so it starts at observer, instead of subordinate... fixes erronous cycle detections.
+		v0.5.7 - 27-Apr-2006/3:35:39
+			-removed all double comments (;;) from code
+			-improved comments on valve/setup and explicitely state that we can call link at that point.
+			-added valve/sub()
+			-cycle? now officially part of miscelaneous methods
+			-added /link refinement to liquify
 	
-	v1.0.2 27/04/2010 (MOA)
-		-bridge pipe server mode work started.
-		-completely rebuilt attach and link functions.  they are faster and add bridge.
-		-replace linked-container? by resolve-links? attribute. any pipe or container can now process as well as store.
-		-fixed little shortcomings in destroy() and linked?()
-		-half of the library is rewritten with optimisation for speed and bridge support throughout.
-		-empiric unit-testing shows that changes have had a VERY positive effect on various aspects of liquid (alloc, process,etc).
-		-added support for CHECK-CYCLE-ON-LINK?.  this is EXTREMELY advanced control of liquid, but makes an as extreme difference on allocation.
-		 use it within controled systems which can clearly and properly manage the linkeage.  when building user guis or readable scripts,
-		 make sure to use cycle? before linking, if cycle-check is off.
-		-unit-testing & profiling
-
-	v1.0.3 30/04/2010 (MOA)
-		-bridge support testing and fixing.
-		
-	v1.0.4 12/05/2010 (MOA)
-		-CHECK-CYCLE-ON-LINK? is now OFF BY DEFAULT
-		-bridge mode finished
-		-bug fixes in CLEANUP()
-		-added /TO refinement to ATTACH() stub
-		-added REINDEX-PLUG()
-		-added FREEZE() and THAW() stubs
-		
-	v1.0.5 2010-06-23 (MOA)
-		-added PROCESS()  stub
-		-added BRIDGE() stub
-		-added PLUG?() to determine if something is a liquid plug
-		-added NOTIFY() valve method and stub
-		-added /ONLY to valve/DETACH() and stub
-		-added /PRESERVE to ATTACH() stub
-		-removed most vprinting to accelerate library
 	
-	v1.1.0 2012-02-07 (MOA)
-		-added concept of !default-plug.
-		
-	v1.1.1 2012-09-12 (MOA)
-		-re-instated a few vprints
-		-fixed PLUG/VALVE/FILL() when used on pipe clients... they don't get propagated back (it never gets dirty).
-		
-	v1.2.0	2012-11-07 (MOA)
-		-Added FORMULATE()
-		-Tweaked PROCESSOR(), which now uses FORMULATE()
-		-Started to add unit tests using SLUT library.
-		
-	v1.2.1  2012-11-14 (MOA)
-		-we can now control HOW link resolving is merged with the plug's mud (pipe or container).  See resolve-links? documentation for more details.
+		v0.5.8 - 29-Apr-2006/14:31:40
+			-verbose is now off by default, from now on.
 	
-	v1.3.0 - 2013-06-20
-		-added LINKED-MUD mode to resolve-links?, only usable by pipe-master, doesn't cause processing.
-		-changed license to Apache v2
 	
+		v0.5.9 - 29-Apr-2006/15:02:55
+			-fix dirty? state return valur of purify.
+			-fixed propagate as a result of above fix
+	
+	
+		v0.5.10 - 24-May-2006/17:07:43
+			-added category to valve.  helps in classification.
+			-removed init as default startup state, easy to forget and invalidates dirtyness by default..
+			 better let the user toggle it on knowingly  :-)
+	
+		v0.5.11 - 5-Oct-2006/2:27:14
+			-renamed plug! to !plug (no clash with real types)
+			-officially added !node alias to !plug (to ease adoption)
+			-liquify/link properly support single plug! spec (it used to support only a block of plugs)
+			-added linked-container? attribute to !plug
+			-fill now creates a container (simple pipe) rather than a pipe (linked pipe) by default.
+			-added word! clash protection on link labels, so that instigate code can separate labels from actual word! type data (not 100% fault tolerant, but with documentation, it becomes easy to prevent).
+	
+		v0.5.12 - 17-Oct-2006/11:58:09
+			-license switch to MIT
+	
+		v0.5.13 - 20-Oct-2006/5:31:44
+			-attach() pipe linking method
+			-detach() pipe unlinking method
+			-added support for a block! of subordinates in link utility func.
+	
+		v0.6.0 - 1-Nov-2006/11:19:29 (MOA)
+			-quick release cleanup.
+			-version major
+	
+		v0.6.1 - 27-Nov-2006/15:01:40 (MOA)
+			-added pipe function, with optional /with refinement.  makes piping more explicit.
+			-fixed linked-container? mode handling here and there.
+	
+		v0.6.2 - 12-Dec-2006/22:35:25 (MOA)
+			-fixed a rare linking setup, when you supply none! as the subordinate to create orphaned links.
+	
+	
+		v0.6.3 - 12-Dec-2006/22:55:18 (MOA)
+	
+	
+		v0.6.4 - 4-Feb-2007/7:01:06 (MOA)
+			-adding the commit feature.  vastly simplifying many plug uses.
+			-not yet implemented commit, but layed out the design for future compatibility.
+	
+	
+		v0.6.5 - 19-Feb-2007/22:35:54 (MOA)
+	
+		v0.6.5 - 13-Apr-2007/19:02:42 (MOA)
+	
+		v0.6.6 - 13-Apr-2007/19:02:58 (MOA)
+	
+		v0.6.7 - 20-Apr-2007/2:59:58 (Unknown)
+	
+		v0.6.8 - 29-Apr-2007/7:55:52 (Unknown)
+	
+		v0.6.9 - 30-Apr-2007/16:56:30 (Unknown)
+			-added insubordinate method.
+			-added /with refinement to liquid
+	
+		v0.6.10 - 30-Apr-2007/22:07:40 (Unknown)
+			-now clears sid in destroy (extra mem cleanup)
+	
+		v0.6.11 - 11-May-2007/0:46:56 (Unknown)
+			-added reset refinement to link and valve/link
+	
+		v0.6.14 - 11-Jul-2007/19:46:17 (MOA)
+	
+		v0.6.15 - 15-Jul-2007/0:58:46 (Unknown)
+	
+	
+		v0.6.17 - 16-Jul-2007/22:57:02 (MOA)
+	
+		v0.7.0 - 7-Mar-2009/00:54:04(MOA)
+			-added PIPE-SERVER-CLASS functionality to ease custom pipe management
+			-fixed minor fill bug related to binding in rebol sub-objects
+			
+		v0.7.1 - 8-Mar-2009/05:54:04(MOA)
+			-fixed regression in link() where a word was deleted from the code for some unknown reason, breaking the function on un-piped nodes.
+			-added FROZEN? and related functionality. can be set to a function for powerfull dynamic node freezing.
+			
+		v0.7.2 - 8-Mar-2009/21:25:55(MOA)
+			-officially deprecated and REMOVED SHARED-STATES from the whole module
+			-ON-LINK() 
+		
+		v0.8.0 - 15-Mar-2009/00:00:00(MOA)
+			-adding stream engine for propagation-style inter-node messaging.
+			-STREAM() added for look-ahead messaging (ask observers to react to us)
+			-ON-STREAM() added to support callbacks when a stream message arrives at a plug.
+			
+		v0.8.1 - 28-Mar-2009/00:00:00(MOA)
+			-PROPAGATE?() added to valve - allows us to optimise lazyness in some advanced plugs
+			-LINK?() regression found and fixed... cycle?() was not being used anymore!
+			
+		v0.8.2 - 02/04/2009/11:13PM(MOA)
+			-the index? of returned instigate() block is now OFFICIALLY the insert position of the linked-container, if any.
+			 this used to be an undefined aspect of liquid, but must now be explicitely handled in any
+			 custom cleanup function.  This was added, since some plugs will need this at the head, while others
+			 will need it at the tail, for processing consistency.
+			 
+		v0.8.3 - 04/04/2009/3:10AM (MOA)
+			-fixed bug in CLEANUP() which didn't use path to access the instigate method.
+			-fixed CYCLE?() bug which tripped over labeled links.
+			-added optional PLUG/PREVIOUS-MUD attribute handling to fill, allows other funcs to detect if fill actually
+			 changed value.
+			-PLUG/PREVIOUS-MUD now set within CLEANUP(), so that multiple fills do not trigger events, until they have been used.
+			-LINKED?() little improvements.
+			
+		v0.8.4 - 27/04/2009/10:37PM (MOA)
+			-plug/mud is now an official store of pre-allocated series, which you do not want to reset (re-allocate) at each process()
+			 no code change, but now an official specification.  so plug/mud is not changed by any function except fill() and related.
+			 
+		v0.8.5 - 03/05/2009/8:15AM (MOA)
+			-added UNLINK() stub function
+			
+		v0.8.6 - 15/09/2009 6:27PM (MOA)
+			-fixed ATTACH() regression which didn't set pipe? on pipe clients ... strange
+			-added 'LIQUID-ERROR-ON-CYCLE? attribute to lib.  this tells liquid to raise an error if 
+			 the LINK?() method detects a cycle?(). prevents unlinked plugs from being silently ignored
+			 and causing frustrating errors (and hard to understand/debug).
+			-Liquid now sets 'LIQUID-ERROR-ON-CYCLE? to true by default, so connection errors will result
+			 in thrown errors... beware.
+		
+		v1.0.0 01/10/2010 (MOA)
+			-removed ALL vprint-based debugging to dramatically increase performance. (only !plug/valve/stats remains with vprint).
+			-as I am using this library in a publicly-released application for the first time, and because I've
+			 been actively using liquid successfully in most projects for YEARS, I've decided to sign-off 
+			 on an official reference v1 release.
+			 
+		v1.0.1 17/04/2010 (MOA)
+			-optimised propagate so its ignored when a node is already dirty.
+			-fixed cycle? so it starts at observer, instead of subordinate... fixes erronous cycle detections.
+		
+		v1.0.2 27/04/2010 (MOA)
+			-bridge pipe server mode work started.
+			-completely rebuilt attach and link functions.  they are faster and add bridge.
+			-replace linked-container? by resolve-links? attribute. any pipe or container can now process as well as store.
+			-fixed little shortcomings in destroy() and linked?()
+			-half of the library is rewritten with optimisation for speed and bridge support throughout.
+			-empiric unit-testing shows that changes have had a VERY positive effect on various aspects of liquid (alloc, process,etc).
+			-added support for CHECK-CYCLE-ON-LINK?.  this is EXTREMELY advanced control of liquid, but makes an as extreme difference on allocation.
+			 use it within controled systems which can clearly and properly manage the linkeage.  when building user guis or readable scripts,
+			 make sure to use cycle? before linking, if cycle-check is off.
+			-unit-testing & profiling
+	
+		v1.0.3 30/04/2010 (MOA)
+			-bridge support testing and fixing.
+			
+		v1.0.4 12/05/2010 (MOA)
+			-CHECK-CYCLE-ON-LINK? is now OFF BY DEFAULT
+			-bridge mode finished
+			-bug fixes in CLEANUP()
+			-added /TO refinement to ATTACH() stub
+			-added REINDEX-PLUG()
+			-added FREEZE() and THAW() stubs
+			
+		v1.0.5 2010-06-23 (MOA)
+			-added PROCESS()  stub
+			-added BRIDGE() stub
+			-added PLUG?() to determine if something is a liquid plug
+			-added NOTIFY() valve method and stub
+			-added /ONLY to valve/DETACH() and stub
+			-added /PRESERVE to ATTACH() stub
+			-removed most vprinting to accelerate library
+		
+		v1.1.0 2012-02-07 (MOA)
+			-added concept of !default-plug.
+			
+		v1.1.1 2012-09-12 (MOA)
+			-re-instated a few vprints
+			-fixed PLUG/VALVE/FILL() when used on pipe clients... they don't get propagated back (it never gets dirty).
+			
+		v1.2.0	2012-11-07 (MOA)
+			-Added FORMULATE()
+			-Tweaked PROCESSOR(), which now uses FORMULATE()
+			-Started to add unit tests using SLUT library.
+			
+		v1.2.1  2012-11-14 (MOA)
+			-we can now control HOW link resolving is merged with the plug's mud (pipe or container).  See resolve-links? documentation for more details.
+		
+		v1.3.0 - 2013-06-20
+			-added LINKED-MUD mode to resolve-links?, only usable by pipe-master, doesn't cause processing.
+			-changed license to Apache v2
+		
 		v1.3.1 - 2013-10-11
 			- 'PIPE() in external API now fills plug with value
 			- 'PLUG?() now returns the plug itself instead of true
@@ -273,6 +273,9 @@ REBOL [
 			-MAJOR FIX to Pipe handling on Attach.  The pipe server now uses its own value as initial mud, 
 			so that any cleanup receives the current value.  When a new pipe server is built, it uses the source's
 			value for itself.
+			
+		v1.3.3 - 2013-10-21
+			- process() api function is now officially deprecated, and renamed --process()
 	}
 	;-  \ history
 
@@ -1307,14 +1310,14 @@ slim/register [
 
 
 	;-----------------
-	;-    process()
+	;-    --process()
 	;
 	; creates a simple plug which expets to be linked, building the process() function
 	; automatically and returning the new plug class.
 	;
 	; <DEPRECATED>: use processor instead.
 	;-----------------
-	process: func [
+	--process: func [
 		type-name [word!]
 		locals [block!] "plug and data will be added to your process func"
 		body [block!]
@@ -1891,7 +1894,7 @@ slim/register [
 			stats: func [
 				"standardized function which print data about a plug"
 				plug "plug to display stats about" [object!]
-				/local lbls item vbz labels
+				/local lbls item vbz labels pipe
 			][
 				vin/always  ["liquid/"  type  "[" plug/sid "]/stats" ]
 				vprint/always "================"
@@ -1925,6 +1928,16 @@ slim/register [
 					vprint/always ["labeled links:  (" labels ")"]
 				]
 				
+				pipe: plug/valve/pipe plug
+				probe type? pipe/pipe?
+				probe pipe/pipe?
+				pipe: plug/valve/pipe plug
+				if 'bridge = pipe/pipe? [
+					vprint/always ""
+					vprint/always ["BRIDGE CHANNELS:"]
+					vprint/always "---"
+					vprobe/always extract pipe/observers 2
+				]
 				
 				vprint/always ""
 				vprint/always ["VALUE:"]
@@ -2631,7 +2644,6 @@ slim/register [
 				channel: any [ch plug/channel]
 				either channel [
 					vprint "CHANNELED pipe-server client"
-					;vprint "I will FORCE this to be a bridge, even if it isn't one in pipe-class"
 					; force pipe-server into being a bridge
 					pipe-server/pipe?: 'bridge
 					
@@ -3395,7 +3407,7 @@ slim/register [
 					vprint "DEFAULT BRIDGE PROCESOR"
 				][
 					; get our subordinate's liquid
-					plug/liquid: data/1
+					plug/liquid: pick data 1
 				]
 
 			]
