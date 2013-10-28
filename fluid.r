@@ -68,6 +68,7 @@ rebol [
 		v1.0.5 - 2013-10-26
 			-added context merging support with the /using keyword.
 			-context merging now supports paths
+			
 	}
 	;-  \ history
 
@@ -102,13 +103,6 @@ slim/register [
 	slim/open/expose 'utils-blocks none [ popblk: pop ]
 	
 	
-	;--------------------------
-	;-     fluids:
-	;
-	;  catalogue of known plug classes for use in  flow
-	;--------------------------
-	fluids: none 
-	
 	
 	;--------------------------
 	;-     --init--()
@@ -136,7 +130,35 @@ slim/register [
 	]
 	
 	
-	
+
+	;-                                                                                                         .
+	;-----------------------------------------------------------------------------------------------------------
+	;
+	;- GLOBALS
+	;
+	;-----------------------------------------------------------------------------------------------------------
+	;--------------------------
+	;-     fluids:
+	;
+	;  catalogue of known plug classes for use in flow
+	;--------------------------
+	fluids: none 
+
+
+	;--------------------------
+	;-     graph-stack:
+	;
+	; stores the current =graph= rule processing stack
+	;
+	; it is cleared at each flow execution in case any errors left the stack dangling.
+	;--------------------------
+	graph-stack: []
+
+
+
+
+
+
 	;-                                                                                                         .
 	;-----------------------------------------------------------------------------------------------------------
 	;
@@ -167,15 +189,12 @@ slim/register [
 	
 	
 	
-	
 	;-                                                                                                         .
 	;-----------------------------------------------------------------------------------------------------------
 	;
 	;- FUNCTIONS
 	;
 	;-----------------------------------------------------------------------------------------------------------
-	
-	
 	
 	
 	;--------------------------
@@ -453,17 +472,6 @@ slim/register [
 	
 
 
-	
-	;--------------------------
-	;-     graph-stack:
-	;
-	; stores the current =graph= rule processing stack
-	;
-	; it is cleared at each flow execution in case any errors left the stack dangling.
-	;--------------------------
-	graph-stack: []
-	
-	
 	
 	
 	;--------------------------
