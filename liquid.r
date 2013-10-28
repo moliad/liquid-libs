@@ -362,10 +362,6 @@ REBOL [
 ;   print "b"
 ;	"tadam"
 ; ]>  
-; test 'unset-test [print "fofo"]
-; test 'zdiv-error-test <[
-;   0 / 0
-; ]>  
 ;
 ;
 
