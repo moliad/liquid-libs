@@ -2,8 +2,8 @@ rebol [
 	; -- Core Header attributes --
 	title: "fluid | liquid dialect"
 	file: %fluid.r
-	version: 1.0.5
-	date: 2013-10-26
+	version: 1.0.7
+	date: 2013-11-01
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Creates and simplifies management of liquid networks.}
 	web: http://www.revault.org/modules/fluid.rmrk
@@ -69,6 +69,21 @@ rebol [
 			-added context merging support with the /using keyword.
 			-context merging now supports paths
 			
+		v1.0.6 - 2013-10-30
+			- auto-memorize capabilities added
+			- renamed 'CATALOGUE function to 'MEMORIZE
+			- 'MEMORIZE function now allows block! type input
+			- internal value 'FLUIDS renamed 'MODELS
+			- renamed fluids-index to models-index
+		
+		v1.0.7 - 2013-11-01
+			- all references to graphs in code are renamed POOLS.
+			- issues now create new models if they are not in catalogue, using global function of the same name, if it exists.
+			  before you'd get an error that the plug class (model) didn't exist.
+			- 'EXTEND-GRAPH/'EXTEND-GCTX  renamed to 'INCORPORATE
+			- 'MODELIZE function added.  uniformitizes creation of new models based on different input datatypes.
+			  handles the auto-memorize flag so it simplies code it dialect.
+			  it also automatically grows the given catalogue, if any.
 	}
 	;-  \ history
 
@@ -88,6 +103,7 @@ rebol [
 
 
 
+
 ;--------------------------------------
 ; unit testing setup
 ;--------------------------------------
@@ -98,7 +114,7 @@ rebol [
 
 slim/register [
 
-	slim/open/expose 'liquid none [ !plug liquify content fill link attach detach unlink plug? pipe piped? ]
+	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? pipe piped? ]
 	slim/open/expose 'utils-words none [ as-lit-word ]
 	slim/open/expose 'utils-blocks none [ popblk: pop ]
 	
@@ -118,11 +134,9 @@ slim/register [
 	; tests:    
 	;--------------------------
 	--init--: funcl [
-		;lib
-		/extern fluids
 	][
 		vin "--init--()"
-		catalogue !plug
+		memorize !plug
 		
 		vout
 		
@@ -138,23 +152,31 @@ slim/register [
 	;
 	;-----------------------------------------------------------------------------------------------------------
 	;--------------------------
-	;-     fluids:
+	;-     models:
 	;
-	;  catalogue of known plug classes for use in flow
+	;  internal, global catalogue of known plug models for use in flow
 	;--------------------------
-	fluids: none 
+	models: none 
 
 
 	;--------------------------
-	;-     graph-stack:
+	;-     pool-stack:
 	;
-	; stores the current =graph= rule processing stack
+	; stores the current =pool= rule processing stack
 	;
 	; it is cleared at each flow execution in case any errors left the stack dangling.
 	;--------------------------
-	graph-stack: []
+	pool-stack: []
 
 
+	;--------------------------
+	;-     auto-memorize?:
+	;
+	; when true, all new plug (labeled) models are memorized
+	;--------------------------
+	auto-memorize?: none
+	
+	
 
 
 
@@ -181,7 +203,7 @@ slim/register [
 		set .tmp issue! 
 		( if #":" <> last .tmp [ =set-issue-fail?=: =fail= ] )
 		=set-issue-fail?=
-	] 
+	]
 	
 	
 	
@@ -192,10 +214,9 @@ slim/register [
 	;-                                                                                                         .
 	;-----------------------------------------------------------------------------------------------------------
 	;
-	;- FUNCTIONS
+	;- CATALOGUE FUNCTIONS
 	;
 	;-----------------------------------------------------------------------------------------------------------
-	
 	
 	;--------------------------
 	;-     to-catalogue()
@@ -250,9 +271,9 @@ slim/register [
 	
 	
 	;--------------------------
-	;-     catalogue()
+	;-     memorize()
 	;--------------------------
-	; purpose:  given a plug, will add it to global fluid catalogue
+	; purpose:  given a plug object or block of plugs, will add it to global fluid catalogue
 	;
 	; inputs:   
 	;
@@ -262,18 +283,284 @@ slim/register [
 	;
 	; tests:    
 	;--------------------------
-	catalogue: funcl [
-		plug [object!]
-		/extern fluids
+	memorize: funcl [
+		"given a plug object or block of plugs, will add it to global fluid catalogue"
+		plug [object! block!]
+		
+		/extern models
 	][
-		vin "catalogue()"
-		fluids: make any [fluids context []] to-catalogue plug
-		vprobe mold words-of fluids
+		vin "memorize()"
+		models: make any [models context []] to-catalogue plug
+		vprobe mold words-of models
 		vout
-		fluids
+		models
 	]
 	
 	
+	;--------------------------
+	;-     auto-memorize()
+	;--------------------------
+	; purpose:  tells fluid to automatically memorize all plug models created in all flows from this point on.
+	;
+	; inputs:   
+	;
+	; returns:  
+	;
+	; notes:    
+	;
+	; tests:    
+	;--------------------------
+	auto-memorize: funcl [
+		/extern auto-memorize?
+	][
+		vin "auto-memorize()"
+		auto-memorize?: true
+		vout
+	]
+	
+	
+	;--------------------------
+	;-     models-index()
+	;--------------------------
+	; purpose:  gives list of plugs names in models catalogue
+	;
+	; inputs:   none
+	;
+	; returns:  block of words
+	;
+	; notes:    
+	;
+	; tests:    
+	;--------------------------
+	models-index: funcl [][
+		vin "models-index()"
+		vout
+		words-of models
+	]
+	
+	
+	;-                                                                                                         .
+	;-----------------------------------------------------------------------------------------------------------
+	;
+	;- POOL MANAGEMENT
+	;
+	;-----------------------------------------------------------------------------------------------------------
+	
+	;--------------------------
+	;-     modelize()
+	;--------------------------
+	; purpose:  easily creates plug models based on different input types 
+	;
+	; inputs:   
+	;
+	; returns:  
+	;
+	; notes:    - when given a [ function! block! paren! type ]  it uses !inline-fluid as the plug name and never memorizes it.
+	;           - we take care of memorization, if auto-memorize? is on
+	;
+	; tests:    
+	;--------------------------
+	modelize: funcl [
+		model [word! issue! function! block! paren!]
+		'catalogue [word! none!]
+		/name model-name "this is mainly used to replace the function! type model name default, other types take the input data as the name."
+	][
+		vin "modelize()"
+		
+		vprobe type? catalogue
+		
+		;ask "!"
+		
+		
+		switch/default type?/word :model [
+			word! [
+				model-name: any [ 
+					model-name 
+					to-word rejoin ["!" model ]
+				]
+				code: get model
+			]
+			
+			issue! [
+				model-name: any [
+					model-name 
+					to-word rejoin ["!" model ]
+				]
+				code: get to-word to-string model
+			]
+			
+			paren! [
+				code: to-block model
+			]
+		][
+			code: :model
+		]
+		
+		model-name: any [
+			model-name
+			'!inline-fluid
+		]
+		
+		v?? model-name
+		vprint type? model
+		model: processor model-name :code
+		
+		if all [
+			auto-memorize? 
+			model-name <> 'inline-fluid
+		][
+			memorize model
+		]
+		
+		if all [
+			catalogue
+			model-name <> 'inline-fluid
+		][
+			set catalogue make get catalogue reduce [
+				to-set-word model-name model 
+			]
+		]
+		
+		vout
+		
+		model
+	]
+
+
+
+	;--------------------------
+	;-     incorporate()
+	;--------------------------
+	; purpose:  extends a pool context with a new word, if it doesn't already contain it.
+	;
+	; inputs:   object! & word! 
+	;            
+	;
+	; returns:  If the context already contains that word, the same context is returned (unless /always is used)
+	;
+	; notes:    /fill automatically creates a !plug if plug type is new...
+	;           /with is usually mutually exclusive to /fill, but they do work together (given a special pipe maste).
+	;
+	; tests:    
+	;--------------------------
+	incorporate: funcl [
+		ctx [object!]
+		property [any-word!]
+		/fill value "give it a value immediately."
+		/with plug "a plug is given explicitely"
+		/always "always create a new context, even if it already contains the given word"
+	][
+		vin "incorporate()"
+		set-property: to-set-word property
+		property: to-word property
+		
+		if any [
+			always
+			not in ctx property
+		][
+			vprint "allocating new pool"
+			ctx: make ctx reduce [
+				set-property none
+			]
+		]
+		
+		if with [
+			set in ctx property plug
+		]
+		
+		if fill [
+			unless plug: plug? get in ctx property [
+				vprobe type? :plug
+				vprint "allocating new plug!"
+				set in ctx property (plug: liquify !plug )
+				;probe-pool ctx
+			]
+			plug/valve/fill plug :value
+		]
+		vout
+		ctx
+	]
+	
+	
+
+	;--------------------------
+	;-     push()
+	;--------------------------
+	; purpose:  quick stub to push observer on stack
+	;
+	; inputs:   a plug to put on the stack
+	;
+	; returns:  the given plug
+	;--------------------------
+	push: funcl [
+		plug [object!]
+	][
+		vin [ "push(" plug/valve/type ":" plug/sid ")" ]
+		append pool-stack plug
+		vout
+	]
+	
+	
+	
+	;--------------------------
+	;-     pop()
+	;--------------------------
+	; purpose:  removes plugs from top of stack, 
+	;
+	; inputs:   
+	;
+	; returns:  removed plug
+	;
+	; notes:    
+	;
+	; tests:    
+	;--------------------------
+	pop: funcl [][
+		vin "pop()"
+		plug: popblk pool-stack
+		vprint [ "(" plug/valve/type ":" plug/sid ")" ]
+		vout
+		plug
+	]
+	
+
+	;-                                                                                                         .
+	;-----------------------------------------------------------------------------------------------------------
+	;
+	;- HELPER FUNCTIONS
+	;
+	;-----------------------------------------------------------------------------------------------------------
+
+
+	;--------------------------
+	;-     probe-pool()
+	;--------------------------
+	; purpose:  
+	;
+	; inputs:   
+	;
+	; returns:  
+	;
+	; notes:    
+	;
+	; tests:    
+	;--------------------------
+	probe-pool: funcl [
+		pool-ctx [ object! ]
+		/debug
+	][
+		vin/always "probe-pool()"
+		foreach word words-of pool-ctx [
+			switch/default word [
+				*catalogue [
+					vprint/always ["*** pool catalogue: " mold words-of select pool-ctx '*catalogue ]
+				]
+			][
+				vprint/always [ "" word " (" get in get in (plug: get in pool-ctx word) 'valve 'type ":" plug/sid"): " mold content plug ]
+			]
+		]
+		vout/always
+	]
 	
 	
 	;--------------------------
@@ -303,98 +590,11 @@ slim/register [
 	]
 	
 	
-	;--------------------------
-	;-     probe-graph()
-	;--------------------------
-	; purpose:  
-	;
-	; inputs:   
-	;
-	; returns:  
-	;
-	; notes:    
-	;
-	; tests:    
-	;--------------------------
-	probe-graph: funcl [
-		graph-ctx [ object! ]
-		/debug
-	][
-		vin/always "probe-graph()"
-		foreach word words-of graph-ctx [
-			switch/default word [
-				*catalogue [
-					vprint/always ["*** graph catalogue: " mold words-of select graph-ctx '*catalogue ]
-				]
-			][
-				vprint/always [ "" word " (" get in get in (plug: get in graph-ctx word) 'valve 'type ":" plug/sid"): " mold content plug ]
-			]
-		]
-		vout/always
-	]
-	
-	
-	
-	
-	;--------------------------
-	;-     extend-gctx()
-	;--------------------------
-	; purpose:  extends a graph context with a new word, if it doesn't already contain it.
-	;
-	; inputs:   object! & word! 
-	;            
-	;
-	; returns:  If the context already contains that word, the same context is returned (unless /always is used)
-	;
-	; notes:    /fill automatically creates a !plug if plug type is new...
-	;           /with is usually mutually exclusive to /fill, but they do work together (given a special pipe maste).
-	;
-	; tests:    
-	;--------------------------
-	extend-gctx: funcl [
-		ctx [object!]
-		property [any-word!]
-		/fill value "give it a value immediately."
-		/with plug "a plug is given explicitely"
-		/always "always create a new context, even if it already contains the given word"
-	][
-		vin "extend-gctx()"
-		set-property: to-set-word property
-		property: to-word property
-		
-		if any [
-			always
-			not in ctx property
-		][
-			vprint "allocating new graph"
-			ctx: make ctx reduce [
-				set-property none
-			]
-		]
-		
-		if with [
-			set in ctx property plug
-		]
-		
-		if fill [
-			unless plug: plug? get in ctx property [
-				vprobe type? :plug
-				vprint "allocating new plug!"
-				set in ctx property (plug: liquify !plug )
-				;probe-graph ctx
-			]
-			plug/valve/fill plug :value
-		]
-		vout
-		ctx
-	]
-	
-	
 	
 	;--------------------------
 	;-     fetch()
 	;--------------------------
-	; purpose:  tries to get the given word from given graph, or directly from word binding, if its not in graph
+	; purpose:  tries to get the given word from given pool, or directly from word binding, if its not in pool
 	;
 	; inputs:   
 	;
@@ -406,7 +606,7 @@ slim/register [
 	;--------------------------
 	fetch: funcl [
 		word [any-word!]
-		graph [object!]
+		pool [object!]
 		/plug "only retrieves plug values, returns none if value are not a plug"
 	][
 		vin "fetch()"
@@ -415,7 +615,7 @@ slim/register [
 		vprobe word
 		
 		value: any [
-			select graph word
+			select pool word
 			get word
 		]
 		
@@ -429,47 +629,15 @@ slim/register [
 	]
 	
 	
-	;--------------------------
-	;-     push()
-	;--------------------------
-	; purpose:  quick stub to push observer on stack
-	;
-	; inputs:   a plug to put on the stack
-	;
-	; returns:  the given plug
-	;--------------------------
-	push: funcl [
-		plug [object!]
-	][
-		vin [ "push(" plug/valve/type ":" plug/sid ")" ]
-		append graph-stack plug
-		vout
-	]
 	
+		
 	
-	
-	;--------------------------
-	;-     pop()
-	;--------------------------
-	; purpose:  removes plugs from top of stack, 
+	;-                                                                                                         .
+	;-----------------------------------------------------------------------------------------------------------
 	;
-	; inputs:   
+	;- DIALECTS
 	;
-	; returns:  removed plug
-	;
-	; notes:    
-	;
-	; tests:    
-	;--------------------------
-	pop: funcl [][
-		vin "pop()"
-		plug: popblk graph-stack
-		vprint [ "(" plug/valve/type ":" plug/sid ")" ]
-		vout
-		plug
-	]
-	
-	
+	;-----------------------------------------------------------------------------------------------------------
 
 
 	
@@ -487,10 +655,10 @@ slim/register [
 	;           word internally, which may use words bound to any context.  the return object, is more a courtesy for 
 	;           tracking what happened within.  You may use some refinements to alter how this is managed.
 	;
-	;           The graph is executed as it is encoutered, in the order it is encountered.  if an error occurs beyond
-	;           some (potential) very basic verification, you can assume that the graph is unstable.
+	;           The pool is executed as it is encoutered, in the order it is encountered.  if an error occurs beyond
+	;           some (potential) very basic verification, you can assume that the pool is unstable.
 	;
-	;           note that if you supply plugs which exist outside the graph and link them or link to them, any error will
+	;           note that if you supply plugs which exist outside the pool and link them or link to them, any error will
 	;           effectively leave some dangling links and may potentioally break your app.
 	;
 	;           using /safe mode, you may be able to effectively recover from an error, since all nodes created from within
@@ -504,7 +672,7 @@ slim/register [
 	;           /WITHIN must be treated carefully: if giving one context, it is used directly, and might replace plugs inside.
 	;           if you give a block of contexts, a new internal context is created with all the provided contexts merged.
 	;           This means that although flow() may connect the plugs from the context you gave it... it will not be able to
-	;           REPLACE the plugs within the provided context.  if you must do this, use the return graph and adjust your 
+	;           REPLACE the plugs within the provided context.  if you must do this, use the return pool and adjust your 
 	;           context directly.
 	;
 	;           Furthermore, when using /WITHIN there must **ONLY** be plugs inside any provided user-ctx.
@@ -513,30 +681,31 @@ slim/register [
 	; tests:    
 	;--------------------------
 	flow: funcl [
-		graph [block!]
+		pool [block!]
 		/contain "Do not use SET on words, only use a private internal context (independent of /within)"
-		/using selection [ block!  ] "Give an (initial) plug class selection directly. (just a list of !plug classes), this is in addition to the global selection."
+		/using selection [ block!  ] "Give an (initial) plug model catalogue. (just a list of !plug classes), this is in addition to the global selection."
 		/within user-ctx [ object! block! ] "provide one or more context to set plugs within... if words are missing in context, a new context is created and extended"
 		/safe "Upon error, destroy all new nodes automatically"
 		/debug "changes return object to a !DEBUG-CTX object.  the normal return object will be within debug-ctx/rval"
+		/extern models
 	][
 		vin "flow()"
 		
-		vprobe graph
-		clear head graph-stack
+		vprobe pool
+		clear head pool-stack
 		
 		catalogue: any [
 			all [
 				using
-				make fluids to-catalogue selection 
+				make models to-catalogue selection 
 			]
 			
-			make fluids [] ; default catalogue, copied on each run, because we may modify it.
+			make models [] ; default catalogue, copied on each run, because we may modify it.
 		]
 		
 		
 		;---
-		; graph context, used for tracking what occured.
+		; pool context, used for tracking what occured.
 		;
 		; there may be a few extra words created by the flow algorithm, these will be prefixed
 		;
@@ -547,7 +716,7 @@ slim/register [
 			context []
 		]
 		vprint [ "catalogue: " mold words-of catalogue ]
-		vprint [ "graph ctx: " mold words-of gctx ]
+		vprint [ "pool ctx: " mold words-of gctx ]
 		
 		
 		;---
@@ -555,7 +724,7 @@ slim/register [
 		dbg-ctx: context [
 			leaves:  [] ; plugs with no subordinates.
 			roots:   [] ; plugs with no observers.
-			classes: [] ; any classes created within the fluid graph
+			classes: [] ; any classes created within the fluid pool
 			
 			return-val: context [] ; what would have been returned if /debug had not been used.
 		]
@@ -563,7 +732,7 @@ slim/register [
 		
 
 		
-		;-         =graph=:
+		;-         =pool=:
 		; this is a hierarchichal rule which allocates and links things including anonymous plugs.
 		;
 		; the rule may call itself (so care must be taken in handling blocks).
@@ -571,14 +740,14 @@ slim/register [
 		; the stack will be dangling when an error occurs but that's not a big deal. The reason being that
 		; we halt on error and clear the stack on any new attempt.
 		;
-		; We REQUIRE a .observer to be set BEFORE calling =graph= 
+		; We REQUIRE a .observer to be set BEFORE calling =pool= 
 		;
 		; note that since the block is not modified at each run (no compose or reduce) the rule itself doesn't
 		; add any processing to the function, but its content is effectively bound to the function.
 		;---
-		=graph=: [
+		=pool=: [
 			; (append stack .observer)
-			(vin "found graph")
+			(vin "found pool")
 			some [
 				[
 					[
@@ -590,11 +759,11 @@ slim/register [
 							vprint ["found plug to link to (" .subordinate/valve/type ":" .subordinate/sid ")"]
 							
 							;---
-							; we push plug on the stack, in case it has a sub graph to link to.
+							; we push plug on the stack, in case it has a sub pool to link to.
 							;
 							; the stack popping will actually do the link.
 							;
-							; if there is no subgraph, no harm is done as it will be popped immediately.
+							; if there is no subpool, no harm is done as it will be popped immediately.
 							push .observer
 							.observer: .subordinate
 						)
@@ -602,18 +771,18 @@ slim/register [
 					| [
 						(.word: none)
 						opt [ set .word set-word! ]
-						set .pclass issue! 
+						set .model issue! 
 						(
 							push .observer
-							.pclass: to-word rejoin ["!" .pclass]
+							.model: to-word rejoin ["!" .model]
 							
-							either p: select catalogue .pclass [
+							either p: select catalogue .model [
 								vprint "allocating new plug"
-								v?? .pclass
+								v?? .model
 								plug: .observer: liquify p
 								if set-word? .word [
-									vprint ["will add plug to graph "  ]
-									gctx: extend-gctx/with gctx .word plug
+									vprint ["will add plug to pool "  ]
+									gctx: incorporate/with gctx .word plug
 								]
 							][
 								to-fluid-error [ "Plug type ("  ") not found" "... near: ^/ " mold copy/part here 3] 
@@ -621,14 +790,14 @@ slim/register [
 						)
 					]
 				]
-				opt [ into =graph= ]
+				opt [ into =pool= ]
 				(
 					vprint "Ready to link"
 					.subordinate: .observer
 					.observer: pop
 					
 					link .observer .subordinate
-					;if debug [ probe-graph gctx ]
+					;if debug [ probe-pool gctx ]
 					vprint ["done linking observer (" .observer/valve/type ":" .observer/sid ") to subordinate (" .subordinate/valve/type ":" .subordinate/sid ")"]
 				)
 			]
@@ -636,14 +805,7 @@ slim/register [
 		]
 		
 		
-		=new-plug=: [
-			set .word set-word!
-			
-		]
-		
-		
-		
-		parse graph [
+		parse pool [
 			some [
 				(vprint "-------------")
 				here:
@@ -652,26 +814,30 @@ slim/register [
 				;-         creating plug
 				[
 					set .word set-word! 
-					set .pclass issue! 
+					set .issue issue! 
 					(
 						vin "creating plug."
-						.pclass: to-word rejoin ["!" .pclass]
-						v?? .word
-						v?? .pclass
 						
-						either p: select catalogue .pclass [
+						.model: to-word rejoin ["!" .issue]
+						v?? .word
+						v?? .model
+						
+						either p: any [
+							select catalogue .model 
+							modelize .issue catalogue
+						][
 							vprobe type? :p
 							plug: .observer: liquify p
-							gctx: extend-gctx/with gctx .word plug 
+							gctx: incorporate/with gctx .word plug 
 							
-							;if debug [ probe-graph gctx ]
+							;if debug [ probe-pool gctx ]
 						][
 							to-fluid-error [ "Plug type ("  ") not found" "... near: ^/ " mold copy/part here 3] 
 						]
 						
-						;if debug [ probe-graph gctx ]
+						;if debug [ probe-pool gctx ]
 					)
-					opt [into =graph=] 
+					opt [into =pool=] 
 					(vout)
 				]
 				
@@ -691,7 +857,7 @@ slim/register [
 						gctx: make gctx vprobe reduce  [
 							.ref .plug 
 						]
-						;if debug [ probe-graph gctx ]
+						;if debug [ probe-pool gctx ]
 						vout
 					)
 				]
@@ -702,35 +868,46 @@ slim/register [
 					; if the .word given is a plug, we get its content and fill it within the new plug.
 					; note that data is not copied. if that is required, insert a #copy plug.
 					set .plug-name set-word! 
-					set .value word!
+					set .word word!
 					(
 						vin "Assign a word's value to a plug."
 						=post-value-rule=: none
-						.value: fetch :.value gctx 
-						vprint type? :.value
-						switch/default type?/word :.value [
+						value: fetch .word gctx 
+						vprint type? :value
+						switch/default type?/word :value [
 							function! native! action! [
 								vprint "FUNCTOR"
-								.observer: liquify processor/safe '!functor-fluid :.value
+								plug-model-name: either auto-memorize? [
+									to-word rejoin ["!" .word ]
+								][
+									'!functor-fluid
+								]
 								
-								gctx: extend-gctx/with gctx .plug-name  .observer
+								plug-model: processor/safe plug-model-name :value
 								
-								=post-value-rule=: [ opt  [into =graph=] ]
+								.observer: liquify plug-model
+
+								if auto-memorize? [
+									memorize plug-model
+								]							
+								
+								gctx: incorporate/with gctx .plug-name  .observer
+								
+								=post-value-rule=: [ opt  [into =pool=] ]
 							]
 						][
-							either plug? :.value [
-								vprint "value is a plug"
-								.value: content .value
-								vprint ["value is of type: " type? :.value]
-								
+							either plug? :value [
+								vprint "get plug content and fill it in new plug"
+								value: content value
+								vprint ["value is of type: " type? :value]
 							][
-								vprint ["value is of type: " type? :.value]
+								vprint ["value is of type: " type? :value]
 							]
 	
-							gctx: extend-gctx/fill gctx .plug-name .value
+							gctx: incorporate/fill gctx .plug-name value
 						]
 						
-						;if debug [ probe-graph gctx ]
+						;if debug [ probe-pool gctx ]
 						vout
 					)
 				]
@@ -745,11 +922,11 @@ slim/register [
 					(
 						vin "inline class expression."
 						.observer: liquify processor '!inline-fluid to-block .expression
-						gctx: extend-gctx/with gctx .plug-name  .observer
+						gctx: incorporate/with gctx .plug-name  .observer
 					)
-					opt  [into =graph=] 
+					opt  [into =pool=] 
 					(
-						;if debug [ probe-graph gctx ]
+						;if debug [ probe-pool gctx ]
 						vout
 					)
 				]				
@@ -770,8 +947,8 @@ slim/register [
 							vprint ["value has value: " mold :.value]
 						]
 						
-						gctx: extend-gctx/fill gctx .word .value
-						;if debug [ probe-graph gctx ]
+						gctx: incorporate/fill gctx .word .value
+						;if debug [ probe-pool gctx ]
 						vout
 					)
 				]
@@ -789,7 +966,7 @@ slim/register [
 							to-set-word .class 'processor to-lit-word .class .code
 						]
 						vprint ["Catalogue: " mold words-of catalogue]
-						;if debug [ probe-graph gctx ]
+						;if debug [ probe-pool gctx ]
 						vout
 					)
 				]
@@ -816,7 +993,7 @@ slim/register [
 								to-fluid-error "plug doesn't exist"
 							]
 							.observer: .subordinate
-							;if debug [ probe-graph gctx ]
+							;if debug [ probe-pool gctx ]
 							vout
 						)
 					]
@@ -870,7 +1047,7 @@ slim/register [
 				
 				
 				;----
-				;-         merging contexts (graphs)
+				;-         merging contexts (pools)
 				| [
 					=using=
 					(vprint "USING?:")
@@ -906,9 +1083,9 @@ slim/register [
 							v?? words
 							foreach word words [
 								either plug? value: get word [
-									gctx: extend-gctx/with gctx word :value
+									gctx: incorporate/with gctx word :value
 								][
-									gctx: extend-gctx/fill gctx word :value
+									gctx: incorporate/fill gctx word :value
 								]
 							]
 						][
@@ -917,13 +1094,15 @@ slim/register [
 						vout
 					)
 				]
+				
+				
 				;----
-				;-         merging contexts (graphs)
+				;-         inline probing of pools
 				| [
-					/PROBE-GRAPH
+					/PROBE-POOL
 					( 
-						;vprint "PROBE GRAPH" 
-						probe-graph gctx
+						;vprint "PROBE POOL" 
+						probe-pool gctx
 					)
 				]
 				
@@ -938,8 +1117,8 @@ slim/register [
 		
 		vout
 		
-		.observer: .subordinate: .class: .code: .value: .word: .plug-name: .expression: .ref: .plug: .pclass: none
-		p: plug: user-ctx: selection: graph: here: pclient: pserver: .pipe-server: .pipe-client: .context: none
+		.observer: .subordinate: .class: .code: .value: .word: .plug-name: .expression: .ref: .plug: .model: none
+		p: plug: user-ctx: selection: pool: here: pclient: pserver: .pipe-server: .pipe-client: .context: none
 		
 		first reduce either debug [[
 			make gctx [
