@@ -2,8 +2,8 @@ REBOL [
 	; -- Core Header attributes --
 	title: "liquid | dataflow management "
 	file: %liquid.r
-	version: 1.3.3
-	date: 2013-10-21
+	version: 1.3.4
+	date: 2013-10-30
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Dataflow processing kernel.  Supports many computing modes and lazy programming..}
 	web: http://www.revault.org/modules/liquid.rmrk
@@ -275,7 +275,15 @@ REBOL [
 			value for itself.
 			
 		v1.3.3 - 2013-10-21
-			- process() api function is now officially deprecated, and renamed --process()
+			- PROCESS() api function is now officially deprecated, and renamed --process()
+	
+		v1.3.4 - 2013-10-30
+			- added 'LIQUID? and 'MODEL? to differentiate between plug classes (models) and plug instances (liquids)
+			- 'PIPED? now uses 'LIQUID? internally
+			- 'PLUG? now accepts unset! inputs
+			- Added tests for new 'LIQUID? and 'MODEL?  functionality
+
+			
 	}
 	;-  \ history
 
@@ -291,6 +299,9 @@ REBOL [
 		
 		The online docs are where you should go to get all the details about using and 
 		customizing liquid plugs.
+		
+		note that as of version 1.3.4, plugs are classified as either liquids (instanciated plugs) or models (plug classes)
+		we still use plug in general, but when a distinction is required, those are the names we should use.
 	}
 	;-  \ documentation
 	to-do: {
@@ -315,9 +326,11 @@ REBOL [
 		 link each instance separatly)
 		-SUBORDINATE CONTAINMENT (like a fill, directly stored in subordinate block.)  allows us to simulate
 		 a node which is connected to several subordinate containers, without the need to actually allocate any of them.
+		 
 		
 	}
 ]
+
 
 
 
@@ -334,9 +347,7 @@ REBOL [
 ; test-init [ print "44" ]
 ; test-init [ print "55" ]
 ;
-;
-;
-;
+;--------------------------------------
 ;
 ;
 ; test-preamble 'values  [   value-a: liquify/fill !plug 3   value-b: liquify/fill !plug 4   value-c: liquify/fill !plug   5]
@@ -354,16 +365,13 @@ REBOL [
 ;
 ;
 ;
-; test 'tprin [ print "test tprin" true]  ; this test has no preamble requirements
-; test [add-3-7  sum-plug  liquid] [sum-plug  values] [ plug: liquify/link !sum-plug [value-a value-b]  probe content plug] ; this test requires preamble 'sum-plug and 'values
-; test [add-4-5  sum-plug  liquid] [sum-plug  values] [ plug: liquify/link !sum-plug [value-a value-b]  probe content plug] ; this test requires preamble 'sum-plug and 'values
-; test 'string-err-msg <[
-;	print "a"
-;   print "b"
-;	"tadam"
-; ]>  
+;-----------------
+;  although simple, this test verifies the majority of liquid's dependency, messaging and propagation engine.
+;-----------------
 ;
+; test [add-3-4  sum-plug  liquid] [sum-plug  values] [ plug: liquify/link !sum-plug [value-a value-b]  7 = content plug] ; this test requires preamble 'sum-plug and 'values
 ;
+;--------------------------------------
 
 
 
@@ -431,8 +439,8 @@ slim/register [
 	; as such, cycle checks are the most demanding operations you can perform on a network of plugs.
 	;
 	; when set to false, you can still call cycle? manually on any plug.  which is a good thing for user-controled
-	; linking verification.  but for the vast majority of links, where a program is handling the connections,
-	; the cycle check isn't really needed.
+	; linking verification.  For the vast majority of links, where a program is handling the connections,
+	; and implementing system architecture, the cycle check isn't really needed.
 	check-cycle-on-link?: false
 	
 	
@@ -1025,13 +1033,18 @@ slim/register [
 	
 			
 	;-----------------
-	;-    plug?()
+	;-     plug?()
 	;-----------------
+	; test-group [plug? liquid !plug liquid.r] [ ]
+	;	[ plug? !plug ]
+	;	[ plug? liquify !plug ]
+	; end-group
 	plug?: func [
-		plug "returns plug if object is based on a liquid plug, none otherwise"
+		"returns plug if object is based on a liquid plug, none otherwise"
+		plug [any-type! unset!]
 	][
 		all [
-			object? plug
+			object? get/any 'plug
 			in plug 'liquid
 			in plug 'valve
 			in plug 'dirty?
@@ -1043,6 +1056,81 @@ slim/register [
 		]
 	]
 	
+	
+	;--------------------------
+	;-     model?()
+	;--------------------------
+	; purpose:  tells us if given data is a liquid plug model (unliquified plug class)
+	;
+	; inputs:   
+	;
+	; returns:  
+	;
+	; notes:    
+	;
+	; test-group [model? liquid !plug liquid.r] [ ]
+	;	[ model? !plug ]
+	;	[ not model? liquify !plug ]
+	;   [ not model? print "Testing unset values" ]
+	;   [ not model? 666 ]
+	;   [ not model? context [] ]
+	; end-group
+	;--------------------------
+	model?: funcl [
+		"returns true if given data is a liquid plug model (unliquified plug class)"
+		model [any-type! unset!] "plug model to verifiy"
+	][
+		all [
+			plug? get/any 'model
+			
+			in model 'subordinates
+			none? model/subordinates
+			in model 'observers
+			none? model/observers
+
+			model
+		]
+	]
+
+
+	
+	;--------------------------
+	;-     liquid?()
+	;--------------------------
+	; purpose:  tells us if the given data is a liquified plug instance
+	;
+	; inputs:   
+	;
+	; returns:  
+	;
+	; notes:    added v1.3.4
+	;
+	; test-group [liquid? liquid !plug liquid.r] [ ]
+	;	[ liquid? liquify !plug ]
+	;	[ not liquid? !plug ]
+	;   [ not liquid? print "Testing unset values" ]
+	;   [ not liquid? 666 ]
+	;   [ not liquid? context [] ]
+	; end-group
+	;--------------------------
+	liquid?: funcl [
+		plug [any-type! unset!]
+	][
+		all [
+			plug? get/any 'plug
+
+			in plug 'subordinates
+			block? plug/subordinates
+			in plug 'observers
+			block? plug/observers
+
+			plug
+		]
+	]
+	
+	
+	
+	
 	;-----------------
 	;-    piped?()
 	;-----------------
@@ -1050,7 +1138,7 @@ slim/register [
 		plug "returns plug if object has a pipe server."
 	][
 		all [
-			plug? plug
+			liquid? plug ; v1.3.4 change... used to be 'PLUG?
 			plug? plug/pipe?
 		]
 	]
