@@ -2,8 +2,8 @@ rebol [
 	; -- Core Header attributes --
 	title: "fluid | liquid dialect"
 	file: %fluid.r
-	version: 1.0.7
-	date: 2013-11-01
+	version: 1.0.8
+	date: 2013-11-7
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Creates and simplifies management of liquid networks.}
 	web: http://www.revault.org/modules/fluid.rmrk
@@ -12,7 +12,7 @@ rebol [
 
 	; -- slim - Library Manager --
 	slim-name: 'fluid
-	slim-version: 1.2.1
+	slim-version: 1.2.2
 	slim-prefix: none
 	slim-update: http://www.revault.org/downloads/modules/fluid.r
 
@@ -84,6 +84,16 @@ rebol [
 			- 'MODELIZE function added.  uniformitizes creation of new models based on different input datatypes.
 			  handles the auto-memorize flag so it simplies code it dialect.
 			  it also automatically grows the given catalogue, if any.
+			  
+		v1.0.8 - 2013-11-07
+			- /SHARING is now supported in 'FLOW dialect, similar to /USING but shares plugs back into original context.
+			- 'RESERVED? function added.
+			- 'INCORPORATE now requires either /fill or /with .  will raise an error otherwise.
+			- gctx/*catalogue renamed to gctx/+catalogue
+			- 'RETRIEVE-CTX function added
+			- added +shared  to gctx, to store shared contexts
+			
+			
 	}
 	;-  \ history
 
@@ -104,6 +114,7 @@ rebol [
 
 
 
+
 ;--------------------------------------
 ; unit testing setup
 ;--------------------------------------
@@ -114,7 +125,7 @@ rebol [
 
 slim/register [
 
-	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? pipe piped? ]
+	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? liquid? pipe piped? ]
 	slim/open/expose 'utils-words none [ as-lit-word ]
 	slim/open/expose 'utils-blocks none [ popblk: pop ]
 	
@@ -447,7 +458,7 @@ slim/register [
 		ctx [object!]
 		property [any-word!]
 		/fill value "give it a value immediately."
-		/with plug "a plug is given explicitely"
+		/with plug [object!] "a plug is given explicitely"
 		/always "always create a new context, even if it already contains the given word"
 	][
 		vin "incorporate()"
@@ -464,18 +475,26 @@ slim/register [
 			]
 		]
 		
-		if with [
+		if all [
+			with 
+			liquid? plug
+		][
 			set in ctx property plug
 		]
 		
 		if fill [
-			unless plug: plug? get in ctx property [
+			unless plug: liquid? get in ctx property [
 				vprobe type? :plug
 				vprint "allocating new plug!"
 				set in ctx property (plug: liquify !plug )
 				;probe-pool ctx
 			]
 			plug/valve/fill plug :value
+		]
+		
+		; if property is shared in another context, set it.
+		if shared-ctx: select ctx/+shared property [
+			set in shared-ctx property plug
 		]
 		vout
 		ctx
@@ -550,13 +569,30 @@ slim/register [
 		/debug
 	][
 		vin/always "probe-pool()"
+		
+		;vdump pool-ctx
+		
+		;vprint "============="
 		foreach word words-of pool-ctx [
 			switch/default word [
-				*catalogue [
-					vprint/always ["*** pool catalogue: " mold words-of select pool-ctx '*catalogue ]
+				+catalogue [
+					vprint/always ["*** pool catalogue: " mold words-of select pool-ctx '+catalogue ]
+				]
+				+shared [
+					vprint/always ["*** shared plugs: "   mold extract pool-ctx/+shared 2 ]
+				
 				]
 			][
-				vprint/always [ "" word " (" get in get in (plug: get in pool-ctx word) 'valve 'type ":" plug/sid"): " mold content plug ]
+				;vprint word
+				vprint/always [ "" word " (" (
+					get in (
+						get in (
+							plug: get in pool-ctx word
+							;vprint "PLUG:"
+							;vdump plug
+						) 'valve
+					) 'type 
+				) ":" plug/sid"): " mold content plug ]
 			]
 		]
 		vout/always
@@ -630,6 +666,82 @@ slim/register [
 	
 	
 	
+	;--------------------------
+	;-     reserved?()
+	;--------------------------
+	; purpose:  determines if a word is a reserved word
+	;
+	; inputs:   
+	;
+	; returns:  
+	;
+	; notes:    
+	;
+	; tests:    
+	;--------------------------
+	reserved?: funcl [
+		word [word!]
+	][
+		vprint [ "reserved?(" word ")" ]
+		#"+" = first to-string word
+	]
+	
+	
+	
+	;--------------------------
+	;-     retrieve-ctx()
+	;--------------------------
+	; purpose:  given some data, try to retrieve a context if it points to one
+	;
+	; inputs:   object! path! or word!
+	;
+	; returns:  an object or none
+	;
+	; notes:    
+	;
+	; tests:    
+	;--------------------------
+	retrieve-ctx: funcl [
+		pool [object!]
+		key [ object! word! path! ]
+	][
+		vin "retrieve-ctx()"
+		ctx: all [
+			attempt [
+				switch type?/word key [
+					object! [
+						ctx: key
+					]
+					
+					path! [
+						path: key
+						all [
+							not any-function? get first path
+							object? ctx: do path
+						]
+					]
+					
+					word! [
+						ctx: fetch key pool
+					]
+				]
+			]
+			object? ctx
+			not empty? words: words-of ctx
+			ctx
+		]
+		
+		v?? words
+
+		key: words: path: pool: none
+		vout
+		ctx
+	]
+	
+	
+	
+	
+	
 		
 	
 	;-                                                                                                         .
@@ -639,8 +751,6 @@ slim/register [
 	;
 	;-----------------------------------------------------------------------------------------------------------
 
-
-	
 	
 	;--------------------------
 	;-     flow()
@@ -705,6 +815,7 @@ slim/register [
 		
 		
 		;---
+		;-     GCTX
 		; pool context, used for tracking what occured.
 		;
 		; there may be a few extra words created by the flow algorithm, these will be prefixed
@@ -717,6 +828,27 @@ slim/register [
 		]
 		vprint [ "catalogue: " mold words-of catalogue ]
 		vprint [ "pool ctx: " mold words-of gctx ]
+		
+		
+		gctx: make gctx [
+			
+			;--------------------------
+			;-         shared:
+			;
+			; A list of plugs we are sharing with other contexts...
+			;
+			; whenever these are created, we have to set them in their respective contexts too.
+			;
+			; a good example is for use in glass.  materials are created manually, so sharing them
+			; with a flow means the materials will be generated directly.
+			;--------------------------
+			+shared: [
+				; plug-name  context-ref
+			]
+		]
+		
+		
+		vdump gctx
 		
 		
 		;---
@@ -1047,7 +1179,7 @@ slim/register [
 				
 				
 				;----
-				;-         merging contexts (pools)
+				;-         importing contexts (pools)
 				| [
 					=using=
 					(vprint "USING?:")
@@ -1080,12 +1212,14 @@ slim/register [
 							object? ctx
 							not empty? words: words-of ctx
 						][
-							v?? words
+							;v?? words
 							foreach word words [
-								either plug? value: get word [
-									gctx: incorporate/with gctx word :value
-								][
-									gctx: incorporate/fill gctx word :value
+								unless (reserved? word) [
+									either plug? value: get word [
+										gctx: incorporate/with gctx word :value
+									][
+										gctx: incorporate/fill gctx word :value
+									]
 								]
 							]
 						][
@@ -1097,11 +1231,51 @@ slim/register [
 				
 				
 				;----
+				;-         sharing contexts (pools)
+				;
+				; the difference here is that any plug created on the fly, is also set 
+				; within the original context.
+				| [
+					/SHARING
+					;(vprint "SHARING?:")
+					here: 
+					set .context [ object! | path! | word! ]
+					(
+						vin "SHARING context"
+						if ctx: retrieve-ctx gctx .context [
+							vprobe "we can share a pool."
+							vprobe type? ctx
+							words-of ctx
+							foreach word words-of ctx [
+								vprobe word
+								either shared: find/tail gctx/+shared word [
+									vprint "REPLACE SHARE"
+									change shared ctx
+								][
+									vprint "ADD SHARE"
+									append gctx/+shared reduce [ word  ctx ]
+								]
+								
+								either liquid? value: get word [
+									gctx: incorporate/with gctx word :value
+								][
+									gctx: incorporate/fill gctx word :value
+								]
+							]
+						][
+							to-fluid-error "/SHARING:   Given value does not refer to a context"
+						]
+						vout
+					)
+				]
+				
+				
+				;----
 				;-         inline probing of pools
 				| [
 					/PROBE-POOL
 					( 
-						;vprint "PROBE POOL" 
+						vprint "PROBE POOL" 
 						probe-pool gctx
 					)
 				]
@@ -1122,7 +1296,7 @@ slim/register [
 		
 		first reduce either debug [[
 			make gctx [
-				*catalogue: make catalogue []
+				+catalogue: make catalogue []
 			]
 			gctx: catalogue: none	
 		]][[
