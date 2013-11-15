@@ -1043,7 +1043,7 @@ slim/register [
 								plug-model-name: either auto-memorize? [
 									to-word rejoin ["!" .word ]
 								][
-									to-word rejoin ["!functor-" .word ]
+									to-word rejoin ["!functor_" .word ]
 								]
 								
 								plug-model: processor/safe plug-model-name :value
