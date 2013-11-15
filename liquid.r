@@ -2,8 +2,8 @@ REBOL [
 	; -- Core Header attributes --
 	title: "liquid | dataflow management "
 	file: %liquid.r
-	version: 1.3.4
-	date: 2013-10-30
+	version: 1.3.5
+	date: 2013-11-15
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Dataflow processing kernel.  Supports many computing modes and lazy programming..}
 	web: http://www.revault.org/modules/liquid.rmrk
@@ -12,7 +12,7 @@ REBOL [
 
 	; -- slim - Library Manager --
 	slim-name: 'liquid
-	slim-version: 1.2.1
+	slim-version: 1.2.2
 	slim-prefix: none
 	slim-update: http://www.revault.org/downloads/modules/liquid.r
 
@@ -283,7 +283,8 @@ REBOL [
 			- 'PLUG? now accepts unset! inputs
 			- Added tests for new 'LIQUID? and 'MODEL?  functionality
 
-			
+		v1.3.5 - 2013-11-15
+			- valve/detach() now only cause a dirty if the plug was actually unpiped (from a pipe server or container mode.).
 	}
 	;-  \ history
 
@@ -330,6 +331,7 @@ REBOL [
 		
 	}
 ]
+
 
 
 
@@ -2882,6 +2884,15 @@ slim/register [
 				][
 					plug/pipe?: none
 				]
+				
+				if was-piped? [
+					; make sure dependencies are updated, only if something really happened to the plug.
+					;
+					; if plug was not piped, nothing happened.
+					plug/valve/dirty plug
+				]
+				 
+				
 				
 				
 				; make sure dependencies are updated
