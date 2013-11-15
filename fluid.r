@@ -2,8 +2,8 @@ rebol [
 	; -- Core Header attributes --
 	title: "fluid | liquid dialect"
 	file: %fluid.r
-	version: 1.0.8
-	date: 2013-11-7
+	version: 1.1.0
+	date: 2013-11-14
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Creates and simplifies management of liquid networks.}
 	web: http://www.revault.org/modules/fluid.rmrk
@@ -93,7 +93,15 @@ rebol [
 			- 'RETRIEVE-CTX function added
 			- added +shared  to gctx, to store shared contexts
 			
-			
+		v1.0.9 - 2013-11-13
+			-/Remodel keyword allow you to mutate plugs on the fly
+			-the < linking operation now accepts a block in order to link several plugs at once.
+	
+		v1.1.0 - 2013-11-14
+			- /SHARING now allows a prefix which is added to pool names, but remembers original names.
+			  allows to import several contexts with the same words, and yet make them all distinct in the pool.
+			- Note that with all the new functionality added in the last few versions, a major revision bump was in order.
+			- A lot of debugging vprints are still left, since fluid is still under review and intensive design.
 	}
 	;-  \ history
 
@@ -106,10 +114,12 @@ rebol [
 		If you look at fluid code, it might look a bit like normal Rebol code, but it's actually quite different.
 		
 		Fluid mostly sets up the dataflow graph, it doesn't actually compute it.  Some parts of the dialect might
-		force a computation, but that is not the norm.
+		force a computation, When this is the case, it will be explicitely documented.
 	}
 	;-  \ documentation
 ]
+
+
 
 
 
@@ -398,6 +408,9 @@ slim/register [
 					to-word rejoin ["!" model ]
 				]
 				code: get to-word to-string model
+				unless any-function? :code [
+					to-fluid-error rejoin ["Cannot modelize " mold model ",  '" model " must refer to a function"]
+				]
 			]
 			
 			paren! [
@@ -492,9 +505,22 @@ slim/register [
 			plug/valve/fill plug :value
 		]
 		
-		; if property is shared in another context, set it.
-		if shared-ctx: select ctx/+shared property [
-			set in shared-ctx property plug
+		; if plug is shared in another context, set it.
+		if shared-prop: find ctx/+shared property [
+			
+			either all [
+				lit-word? orig-name: pick back shared-prop 1
+				object? shared-ctx: pick next shared-prop 1
+			][
+				set in shared-ctx orig-name plug
+			][
+				v?? orig-name
+				v?? property
+				vprobe type? shared-ctx
+				v?? shared-ctx
+				vdump ctx/+shared
+				to-fluid-error "incorporate(): pool's shared list is corrupted!"
+			]
 		]
 		vout
 		ctx
@@ -579,7 +605,7 @@ slim/register [
 					vprint/always ["*** pool catalogue: " mold words-of select pool-ctx '+catalogue ]
 				]
 				+shared [
-					vprint/always ["*** shared plugs: "   mold extract pool-ctx/+shared 2 ]
+					vprint/always ["*** shared plugs: "   mold extract next pool-ctx/+shared 3 ]
 				
 				]
 			][
@@ -1106,28 +1132,37 @@ slim/register [
 				;----
 				;-         linking plugs
 				| [
+					here:
 					set .observer word!
 					some [
 						=lt=
-						set .subordinate word!
+						set .subordinate [ word! | block! ]
 						(
 							vin "LINKING PLUGS"
-							either all [
-								any [
-									object? .observer
-									.observer:    select gctx .observer
+							subordinates: compose [(.subordinate)]
+							foreach .subordinate subordinates [
+								either all [
+									any [
+										; reuse last plug in chained linking (a < b < c )
+										object? .observer
+										
+										; or assign observer to the first plug in the list.
+										.observer:    select gctx .observer
+									]
+									liquid? .subordinate: fetch/plug .subordinate gctx
+								][
+									;vprint ["linking " .observer/valve/type " to " .subordinate/valve/type ]
+									vprint ["linking observer (" .observer/valve/type ":" .observer/sid ") to subordinate (" .subordinate/valve/type ":" .subordinate/sid ")"]
+									link .observer .subordinate
+								][
+									to-fluid-error ["cannot link, data does not refer to liquified plug, here: "  mold copy/part here 4]
 								]
-								.subordinate: select gctx .subordinate
-							][
-								vprint ["linking " .observer/valve/type " to " .subordinate/valve/type ]
-								link .observer .subordinate
-							][
-								to-fluid-error "plug doesn't exist"
+								.observer: .subordinate
 							]
-							.observer: .subordinate
 							;if debug [ probe-pool gctx ]
 							vout
 						)
+						here:
 					]
 				]
 				
@@ -1237,8 +1272,9 @@ slim/register [
 				; within the original context.
 				| [
 					/SHARING
-					;(vprint "SHARING?:")
+					(vprint "SHARING?:")
 					here: 
+					set .prefix opt tag!
 					set .context [ object! | path! | word! ]
 					(
 						vin "SHARING context"
@@ -1246,17 +1282,40 @@ slim/register [
 							vprobe "we can share a pool."
 							vprobe type? ctx
 							words-of ctx
-							foreach word words-of ctx [
-								vprobe word
+							foreach src-word words-of ctx [
+								v?? src-word
+								word: either .prefix [
+									to-word rejoin ["" to-string .prefix "." src-word ]
+								][
+									src-word
+								]
+								v?? word
+								
+								;---
+								; check if the word (possibly prefixed) is already used
+								; in our pool
 								either shared: find/tail gctx/+shared word [
 									vprint "REPLACE SHARE"
 									change shared ctx
 								][
 									vprint "ADD SHARE"
-									append gctx/+shared reduce [ word  ctx ]
+									;-----------------------
+									; ** ATTENTION **
+									;
+									; the to-lit-word is ESSENTIAL.   this is because FIND
+									; is able to differentiate between word and lit-words.
+									;
+									; on the other hand, the 'IN function (in context [a: 1] first ['a] )
+									; doesn't differentiate.  so the incorporate function can find and set 
+									; the original name from its context using our local name... without any
+									; type conversion.
+									;-----------------------
+									append gctx/+shared reduce [ to-lit-word src-word  word  ctx ]
 								]
 								
-								either liquid? value: get word [
+								;---
+								; use or create new plug
+								either liquid? value: get src-word [
 									gctx: incorporate/with gctx word :value
 								][
 									gctx: incorporate/fill gctx word :value
@@ -1268,6 +1327,56 @@ slim/register [
 						vout
 					)
 				]
+
+
+
+				;----
+				;-         remodeling
+				| [
+					/remodel 
+					set .plug-name word! 
+					set .model-spec [ issue!  |  word!  |  paren!  | block!  ]
+					(
+						vin "remodeling plug."
+						v?? .plug-name
+						v?? .model-spec
+						
+						model: switch type?/word :.model-spec [
+							issue! [
+								any [
+									select catalogue model-name: to-word rejoin [ "!" .model-spec ]
+									fetch/plug model-name gctx
+								]
+							]
+						
+							word! [
+								fetch/plug .model-spec gctx
+							]
+							
+							paren! block! [
+								modelize .model-spec
+							]
+						]
+						
+						
+						unless plug? model [
+							to-fluid-error [ "Plug type (" .model-spec ") not found" "... near: ^/ " mold copy/part here 3] 
+						]
+						
+						vprint ["model type: " model/valve/type ]
+						 
+						unless plug: plug? fetch/plug .plug-name gctx [
+								to-fluid-error [ "Invalid plug name given, plug doesn't exist in pool : ^/ " mold copy/part here 3] 
+						]
+					
+						plug/valve: model/valve
+						vout
+					)
+				]
+				
+
+
+
 				
 				
 				;----
