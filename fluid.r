@@ -2,7 +2,7 @@ rebol [
 	; -- Core Header attributes --
 	title: "fluid | liquid dialect"
 	file: %fluid.r
-	version: 1.1.0
+	version: 1.1.1
 	date: 2013-11-14
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Creates and simplifies management of liquid networks.}
@@ -102,6 +102,12 @@ rebol [
 			  allows to import several contexts with the same words, and yet make them all distinct in the pool.
 			- Note that with all the new functionality added in the last few versions, a major revision bump was in order.
 			- A lot of debugging vprints are still left, since fluid is still under review and intensive design.
+
+		v1.1.1 - 2013-11-15
+			- added flow notation linking allowing one plug to easily send its data to many observers. 
+			  ex:  [  a > [ b c]  ]   would link b to a   and  c to a, 
+			                          this way both b and c will receive data (depend on) from a
+			- /REMODEL now properly causes plug (and all observers) to be dirty,
 	}
 	;-  \ history
 
@@ -135,7 +141,7 @@ rebol [
 
 slim/register [
 
-	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? liquid? pipe piped? ]
+	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? liquid? pipe piped? dirty]
 	slim/open/expose 'utils-words none [ as-lit-word ]
 	slim/open/expose 'utils-blocks none [ popblk: pop ]
 	
@@ -507,7 +513,6 @@ slim/register [
 		
 		; if plug is shared in another context, set it.
 		if shared-prop: find ctx/+shared property [
-			
 			either all [
 				lit-word? orig-name: pick back shared-prop 1
 				object? shared-ctx: pick next shared-prop 1
@@ -518,7 +523,7 @@ slim/register [
 				v?? property
 				vprobe type? shared-ctx
 				v?? shared-ctx
-				vdump ctx/+shared
+				;vdump ctx/+shared
 				to-fluid-error "incorporate(): pool's shared list is corrupted!"
 			]
 		]
@@ -1038,7 +1043,7 @@ slim/register [
 								plug-model-name: either auto-memorize? [
 									to-word rejoin ["!" .word ]
 								][
-									'!functor-fluid
+									to-word rejoin ["!functor-" .word ]
 								]
 								
 								plug-model: processor/safe plug-model-name :value
@@ -1069,6 +1074,8 @@ slim/register [
 						vout
 					)
 				]
+				;---
+				; this is only set when the .word input was a function reference.
 				=post-value-rule=
 				
 
@@ -1130,8 +1137,13 @@ slim/register [
 				]
 				
 				;----
-				;-         linking plugs
+				;-         linking plugs - dependency notation
 				| [
+					;---------
+					; practical to link one plug to many dependencies (link many data to one plug)
+					;
+					; note that chaining blocks doesn't make much sense, but its allowed ... since it would be more
+					; complex to prevent it anyways.
 					here:
 					set .observer word!
 					some [
@@ -1146,20 +1158,64 @@ slim/register [
 										; reuse last plug in chained linking (a < b < c )
 										object? .observer
 										
-										; or assign observer to the first plug in the list.
+										; or assign observer to first one given in flow spec.
 										.observer:    select gctx .observer
 									]
 									liquid? .subordinate: fetch/plug .subordinate gctx
 								][
-									;vprint ["linking " .observer/valve/type " to " .subordinate/valve/type ]
 									vprint ["linking observer (" .observer/valve/type ":" .observer/sid ") to subordinate (" .subordinate/valve/type ":" .subordinate/sid ")"]
+									detach .observer
 									link .observer .subordinate
 								][
 									to-fluid-error ["cannot link, data does not refer to liquified plug, here: "  mold copy/part here 4]
 								]
-								.observer: .subordinate
 							]
-							;if debug [ probe-pool gctx ]
+								.observer: .subordinate
+							vout
+						)
+						here:
+					]
+				]
+
+				;----
+				;-         linking plugs - flow notation
+				| [
+					;---------
+					; practical for many plugs to depend on the same subordinate  (link many plugs to same data)
+					;
+					; note that chaining blocks doesn't make much sense, but its allowed ... since it would be more
+					; complex to prevent it anyways.
+					;
+					; note that although this notation gives the impression that data is being pushed to
+					; one or more other nodes, it really is still using pull mode dependency processing... its just
+					; reversing the iteration so that it iterates observers instead of iterating on subordinates.
+					here:
+					set .subordinate word!
+					some [
+						=gt=
+						set .observer [ word! | block! ]
+						(
+							vin "LINKING PLUGS"
+							observers: compose [(.observer)]
+							foreach .observer observers [
+								either all [
+									any [
+										; reuse last plug in chained linking (a < b < c )
+										object? .subordinate
+										
+										; or assign subordinate to first one given in flow spec.
+										.subordinate:    select gctx .subordinate
+									]
+									liquid? .observer: fetch/plug .observer gctx
+								][
+									vprint ["linking observer (" .observer/valve/type ":" .observer/sid ") to subordinate (" .subordinate/valve/type ":" .subordinate/sid ")"]
+									detach .observer
+									link .observer .subordinate
+								][
+									to-fluid-error ["cannot link, data does not refer to liquified plug, here: "  mold copy/part here 4]
+								]
+								.subordinate: .observer
+							]
 							vout
 						)
 						here:
@@ -1370,6 +1426,8 @@ slim/register [
 						]
 					
 						plug/valve: model/valve
+						plug/valve/dirty plug ; force recomputation, if it was clean
+						
 						vout
 					)
 				]
