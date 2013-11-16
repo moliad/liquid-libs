@@ -2,8 +2,8 @@ rebol [
 	; -- Core Header attributes --
 	title: "fluid | liquid dialect"
 	file: %fluid.r
-	version: 1.1.1
-	date: 2013-11-14
+	version: 1.1.2
+	date: 2013-11-16
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Creates and simplifies management of liquid networks.}
 	web: http://www.revault.org/modules/fluid.rmrk
@@ -106,9 +106,13 @@ rebol [
 		v1.1.1 - 2013-11-15
 			- added flow notation linking allowing one plug to easily send its data to many observers. 
 			  ex:  [  a > [ b c]  ]   would link b to a   and  c to a, 
-			                          this way both b and c will receive data (depend on) from a
+									  this way both b and c will receive data (depend on) from a
 			- /REMODEL now properly causes plug (and all observers) to be dirty,
-	}
+	
+		v1.1.2 - 2013-11-16
+			- creating new plugs can now use words as models, when these are plugs.
+	 		  ex:   [my-plug: !plug [ sub1 sub2 ]
+		}
 	;-  \ history
 
 	;-  / documentation
@@ -131,6 +135,7 @@ rebol [
 
 
 
+
 ;--------------------------------------
 ; unit testing setup
 ;--------------------------------------
@@ -141,7 +146,7 @@ rebol [
 
 slim/register [
 
-	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? liquid? pipe piped? dirty]
+	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? liquid? model? pipe piped? dirty]
 	slim/open/expose 'utils-words none [ as-lit-word ]
 	slim/open/expose 'utils-blocks none [ popblk: pop ]
 	
@@ -150,15 +155,9 @@ slim/register [
 	;--------------------------
 	;-     --init--()
 	;--------------------------
-	; purpose:  
+	; purpose:  slim library initialization hook. 
 	;
-	; inputs:   
-	;
-	; returns:  
-	;
-	; notes:    
-	;
-	; tests:    
+	; notes:    runs AFTER the module is registered.
 	;--------------------------
 	--init--: funcl [
 	][
@@ -206,8 +205,6 @@ slim/register [
 	
 
 
-
-
 	;-                                                                                                         .
 	;-----------------------------------------------------------------------------------------------------------
 	;
@@ -231,8 +228,6 @@ slim/register [
 		( if #":" <> last .tmp [ =set-issue-fail?=: =fail= ] )
 		=set-issue-fail?=
 	]
-	
-	
 	
 	
 	
@@ -1058,6 +1053,16 @@ slim/register [
 								
 								=post-value-rule=: [ opt  [into =pool=] ]
 							]
+							object! [
+								if model? value [
+									.observer: liquify value
+									if auto-memorize? [
+										memorize value
+									]							
+									gctx: incorporate/with gctx .plug-name  .observer
+									=post-value-rule=: [ opt  [into =pool=] ]
+								]
+							]
 						][
 							either plug? :value [
 								vprint "get plug content and fill it in new plug"
@@ -1272,7 +1277,8 @@ slim/register [
 				;----
 				;-         importing contexts (pools)
 				| [
-					=using=
+					;=using=
+					/USING
 					(vprint "USING?:")
 					here: 
 					set .context [ object! | path! | word! ]
