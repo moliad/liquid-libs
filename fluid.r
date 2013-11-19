@@ -2,8 +2,8 @@ rebol [
 	; -- Core Header attributes --
 	title: "fluid | liquid dialect"
 	file: %fluid.r
-	version: 1.1.2
-	date: 2013-11-16
+	version: 1.1.3
+	date: 2013-11-18
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Creates and simplifies management of liquid networks.}
 	web: http://www.revault.org/modules/fluid.rmrk
@@ -111,8 +111,12 @@ rebol [
 	
 		v1.1.2 - 2013-11-16
 			- creating new plugs can now use words as models, when these are plugs.
-	 		  ex:   [my-plug: !plug [ sub1 sub2 ]
-		}
+			  ex:   [my-plug: !plug [ sub1 sub2 ]
+		
+		v1.1.3 - 2013-11-18
+			-added unlinking to the dialect... notation may change but trying it for now.
+			-can now use simplified /probe notation instead of /probe-pool
+	}
 	;-  \ history
 
 	;-  / documentation
@@ -136,6 +140,7 @@ rebol [
 
 
 
+
 ;--------------------------------------
 ; unit testing setup
 ;--------------------------------------
@@ -146,7 +151,7 @@ rebol [
 
 slim/register [
 
-	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? liquid? model? pipe piped? dirty]
+	slim/open/expose 'liquid 1.3.4 [ !plug liquify content fill link attach detach unlink plug? liquid? model? pipe piped? dirty insubordinate ]
 	slim/open/expose 'utils-words none [ as-lit-word ]
 	slim/open/expose 'utils-blocks none [ popblk: pop ]
 	
@@ -874,7 +879,7 @@ slim/register [
 		]
 		
 		
-		vdump gctx
+		vdump/ignore gctx [object!]
 		
 		
 		;---
@@ -1123,6 +1128,7 @@ slim/register [
 					)
 				]
 				
+				
 				;----
 				;-         create new plug class
 				| [
@@ -1140,6 +1146,7 @@ slim/register [
 						vout
 					)
 				]
+				
 				
 				;----
 				;-         linking plugs - dependency notation
@@ -1181,7 +1188,8 @@ slim/register [
 						here:
 					]
 				]
-
+				
+				
 				;----
 				;-         linking plugs - flow notation
 				| [
@@ -1227,6 +1235,25 @@ slim/register [
 					]
 				]
 				
+				
+				;----
+				;-         unlinking plug
+				;
+				; Note that we don't detach or insubordinate.
+				| [
+					'-| set .plug [ word! | block! ] '|-
+					(
+						vprint "unlinking plug"
+						.plug: compose [ ( .plug ) ]
+						foreach plug .plug [
+							if plug: plug? fetch/plug plug gctx [
+								unlink plug
+							]
+						]
+						vout
+					)
+				]
+
 				
 				;----
 				;-         piping plugs
@@ -1391,7 +1418,6 @@ slim/register [
 				]
 
 
-
 				;----
 				;-         remodeling
 				| [
@@ -1438,15 +1464,11 @@ slim/register [
 					)
 				]
 				
-
-
-
-				
 				
 				;----
-				;-         inline probing of pools
+				;-         probing pool
 				| [
-					/PROBE-POOL
+					/PROBE-POOL | /PROBE
 					( 
 						vprint "PROBE POOL" 
 						probe-pool gctx
@@ -1459,7 +1481,6 @@ slim/register [
 					to-fluid-error [ "Invalid flow... Here: " mold back new-line next new-line (back insert copy/part here 5 to-word ">>>" ) true false ]
 				)
 			]
-		
 		]
 		
 		vout
