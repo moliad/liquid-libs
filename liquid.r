@@ -449,12 +449,13 @@ slim/register [
 	
 	
 			
-
-
-	;-
-	;------------------------------------------------------------------------------------------------------------------------------------------
+;-                                                                                                       .
+	;-----------------------------------------------------------------------------------------------------------
+	;
 	;- UTIL FUNCTIONS
-	;------------------------------------------------------------------------------------------------------------------------------------------
+	;
+	;-----------------------------------------------------------------------------------------------------------
+
 	
 ;	;--------------------------
 ;	;-     extract-set-words()
@@ -490,10 +491,12 @@ slim/register [
 ;	vin: vout: none	
 
 
-
-	;--------------------------------------------------------------------------------------------------
+	;-                                                                                                       .
+	;-----------------------------------------------------------------------------------------------------------
+	;
 	;- INTERNAL FUNCTIONS
-	;--------------------------------------------------------------------------------------------------
+	;
+	;-----------------------------------------------------------------------------------------------------------
 
 	;-----------------------------------------
 	;-    alloc-sid()
@@ -577,14 +580,13 @@ slim/register [
 	
 	
 	
-	
-
-	;-
-	;------------------------------------------------------------------------------------------------------------------------------------------
+	;-                                                                                                       .
+	;-----------------------------------------------------------------------------------------------------------
+	;
 	;- EXTERNAL API !
-	;------------------------------------------------------------------------------------------------------------------------------------------
+	;
+	;-----------------------------------------------------------------------------------------------------------
 
-	
 	;-----------------------
 	;-    liquify()
 	;-----------------------
@@ -763,6 +765,8 @@ slim/register [
 			plug/valve/fill plug value
 		]
 	]
+	
+	
 	
 	
 	;-----------------------------------------
@@ -1146,7 +1150,12 @@ slim/register [
 	]
 	
 	
+	;-                                                                                                       .
+	;-----------------------------------------------------------------------------------------------------------
+	;
 	;- LIQUID DIALECTS
+	;
+	;-----------------------------------------------------------------------------------------------------------
 
 
 	
@@ -1186,7 +1195,12 @@ slim/register [
 
 
 
+	;-                                                                                                       .
+	;-----------------------------------------------------------------------------------------------------------
+	;
 	;- PLUG CLASS MACROS
+	;
+	;-----------------------------------------------------------------------------------------------------------
 	;
 	; the following are considered macros, which allow simple wrapping around common plug class creation.
 	; the returned plugs are NOT liquified.
@@ -1448,11 +1462,11 @@ slim/register [
 	;          builds the process() function automatically.
 	;
 	; inputs:   type-name:  class name stored in plug/valve/type
-	;           body:       the process function's body
+	;           body:       the process function's body uses 'FUNCL 
 	;
 	; returns:  a new plug class.
 	;
-	; notes:    an updated version of process(), uses 'FUNCL and formulate
+	; notes:    an updated version of process(), uses formulate
 	;
 	; tests:    
 	;--------------------------
@@ -1463,6 +1477,7 @@ slim/register [
 		/valve vlv-spec [block!] "Extend the valve spec manually"
 		/base refplug [object!]  "Manually provide the base class to derive"
 		/safe "If body is given as a function!, wrap the processor in an attempt"
+		/block "If body is given as a function!, provide data as a single argument, note we cannot provide refinements."
 	][
 		vin "processor()"
 		
@@ -1474,8 +1489,14 @@ slim/register [
 			;----
 			ctx: context [
 				plug-func: :body
-				blk: compose [ 
-					plug/liquid: apply :plug-func data 
+				either block [
+					blk: compose/only [
+						plug/liquid: (:plug-func)  data
+					]
+				][
+					blk: compose [ 
+						plug/liquid: apply :plug-func data 
+					]
 				]
 				
 				if safe [
@@ -1561,11 +1582,12 @@ slim/register [
 	]
 		
 
-
-	;-  
-	;-----------------------
+	;-                                                                                                       .
+	;-----------------------------------------------------------------------------------------------------------
+	;
 	;- !PLUG
-	;-----------------------
+	;
+	;-----------------------------------------------------------------------------------------------------------
 	!plug: !default-plug: make object! [
 		;------------------------------------------------------
 		;-    VALUES
@@ -2015,8 +2037,8 @@ slim/register [
 				]
 				
 				pipe: plug/valve/pipe plug
-				probe type? pipe/pipe?
-				probe pipe/pipe?
+				vprobe/always type? pipe/pipe?
+				vprobe/always pipe/pipe?
 				pipe: plug/valve/pipe plug
 				if 'bridge = pipe/pipe? [
 					vprint/always ""
@@ -2754,10 +2776,16 @@ slim/register [
 				client [object!] "The plug we wish to pipe, can be currently piped or not"
 				source [object!] "The plug which is or will be providing the pipe.  If it currently has none, it will be asked to create one, per its current pipe callback"
 				/to channel [word!] "if pipe server is a bridge, which channel to attach to"
-				/local blk pipe-server
+				/keep             "keep the client's data, immediately does a fill on the server, may cause a client cleanup()"
+				/local blk pipe-server client-data
 			][
 				
 				vin ["liquid/" client/valve/type "[" client/sid "]/attach()"]
+				
+				if keep [
+					client-data: content client
+				]
+				
 				;check if observer isn't currently piped into something
 				client/valve/detach client
 				
@@ -2818,7 +2846,12 @@ slim/register [
 					append pipe-server/observers client
 				]
 				
-				pipe-server/valve/dirty pipe-server
+				either keep [
+					pipe-server/valve/fill pipe-server :client-data
+				][
+					pipe-server/valve/dirty pipe-server
+				]
+				
 				vout
 			]
 
@@ -3866,10 +3899,10 @@ slim/register [
 						pick channel 1
 					]
 				][
-					plug/liquid
+					get in plug 'liquid ; allows us to pass function, native and op values
 				]
 				vout
-				rval
+				:rval
 			]
 
 
