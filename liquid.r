@@ -2,8 +2,8 @@ REBOL [
 	; -- Core Header attributes --
 	title: "liquid | dataflow management "
 	file: %liquid.r
-	version: 1.3.5
-	date: 2013-11-15
+	version: 1.4.1
+	date: 2015-06-15
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Dataflow processing kernel.  Supports many computing modes and lazy programming..}
 	web: http://www.revault.org/modules/liquid.rmrk
@@ -12,14 +12,14 @@ REBOL [
 
 	; -- slim - Library Manager --
 	slim-name: 'liquid
-	slim-version: 1.2.2
+	slim-version: 1.2.7
 	slim-prefix: none
 	slim-update: http://www.revault.org/downloads/modules/liquid.r
 
 	; -- Licensing details  --
-	copyright: "Copyright © 2013 Maxim Olivier-Adlhoch"
+	copyright: "Copyright © 2015 Maxim Olivier-Adlhoch"
 	license-type: "Apache License v2.0"
-	license: {Copyright © 2013 Maxim Olivier-Adlhoch
+	license: {Copyright © 2015 Maxim Olivier-Adlhoch
 
 	Licensed under the Apache License, Version 2.0 (the "License");
 	you may not use this file except in compliance with the License.
@@ -285,6 +285,13 @@ REBOL [
 
 		v1.3.5 - 2013-11-15
 			- valve/detach() now only cause a dirty if the plug was actually unpiped (from a pipe server or container mode.).
+	
+		v1.4.0 - 2015-06-03
+			-added recipient push mechanism. Does not detect cycles, use at own risk.
+			
+		v1.4.1 - 2015-06-15
+			-added fill/HOLD mechanism which allows pipe clients to temporarily ignore pipe server.
+			-attach stub, now returns the attaching plug
 	}
 	;-  \ history
 
@@ -331,6 +338,7 @@ REBOL [
 		
 	}
 ]
+
 
 
 
@@ -614,6 +622,8 @@ slim/register [
 		if as [
 			spec: append copy spec compose/deep [valve: make valve [type: (to-lit-word valve-type)]]
 		]
+		
+		
 		plug: make type spec
 		;plug/shared-states: type/shared-states
 		
@@ -946,25 +956,27 @@ slim/register [
 	
 	;-----------------
 	;-    attach()
+	; 
+	;
 	;-----------------
-	attach: func [
-		observer [object!]
+	attach: funcl [
+		client [object!] ; client is an observer
 		pipe [object!]
 		/to channel
 		/preserve "our value is kept when attaching, so that the pipe will immediately use our value(we fill pipe)"
-		/local val
 	][
 		if preserve [
-			val: content observer
+			val: content client
 		]
 		either to [
-			observer/valve/attach/to observer pipe channel
+			client/valve/attach/to client pipe channel
 		][
-			observer/valve/attach observer pipe
+			client/valve/attach client pipe
 		]
 		if preserve [
-			fill observer val
+			client/valve/fill client val
 		]
+		client
 	]
 	
 	;-----------------
@@ -1775,7 +1787,7 @@ slim/register [
 		
 		
 		;-----------------------------------------
-		;-       linked-container?:
+		;       linked-container?:
 		; DEPRECATED.
 		;-----------------------------------------
 		; if set to true, this tells the processing mechanisms that you wish to have both 
@@ -1811,17 +1823,66 @@ slim/register [
 		
 		
 		
+		;--------------------------
+		;-       circulate:
+		;
+		; v1.4.0
+		;
+		; A sparingly used mechanism to propagate fills to other plugs outside of the 
+		; dependency graph.
+		;
+		; This is a paired list of destination and process func which allows you to send your 
+		; data in another format to another plug.  
+		;
+		; Note that only a direct call to plug/valve/FILL() will use this list of targets.
+		; 
+		; Receiving notifications from a pipe server will NOT cause any circulation.
+		;
+		; This allows you to convert data and send it to other plugs, but remember that
+		; this is a push mechanism, so any processing done here is done EVERY time you use 
+		; fill on the function.
+		;
+		; also note that the push is done AFTER the local fill is done, so any stainless
+		; plugs will be cleaned before any external plug is notified.
+		;
+		; Circulated plugs will circulate their own targets, so make sure you don't create a cycle.
+		;--------------------------
+		circulate: none
+		
+		
+		;--------------------------
+		;-             holding?:
+		;
+		; allows fill/hold to stick until the pipe causes propagation.
+		;
+		; when a plug is in hold mode, it doesn't send its mud to the pipe server,
+		; it temporarily stays independent.  this allows for a kind of in progress
+		; status which doesn't interact with the pipe, until it is ready, at which
+		; point you just use a normal fill and the hold mode is reset.
+		;
+		; you can also do a fill/reset, which will clear the hold mode and set the plug client,
+		; dirty.
+		;
+		; if/when holding is improved, it allows someone to check if a plug is currently
+		; holding.
+		;--------------------------
+		holding?: none
 		
 		
 		
 		
 		
-		;------------------------------------------------------
-		;-    VALVE (class)
-		;------------------------------------------------------
+		
+		
+		;-                                                                                                       .
+		;-----------------------------------------------------------------------------------------------------------
+		;
+		;-         VALVE (CLASS)
+		;
+		;-----------------------------------------------------------------------------------------------------------
 		valve: make object! [
 			;-        qualifiers:
-			;-            *plug*
+			;            *plug*
 			; normally, we'd add a word in the definition like so... but its obviously useless adding
 			; a word within all plugs
 			; the value of the qualifier is a version, which identifies which version of a specific
@@ -2115,9 +2176,10 @@ slim/register [
 				append plug-list plug/sid
 				append plug-list plug
 
-				setup plug
-				cleanse plug
-
+				plug/valve/setup plug
+				plug/valve/cleanse plug
+				
+				;---
 				; allow per instance init, if that plug type needs it.  Use as SPARINGLY as possible.
 				if in plug 'init [
 					plug/init
@@ -3013,9 +3075,13 @@ slim/register [
 				mud ; data you wish to fill within plug's pipe
 				/pipe "<TO DO> tells the engine to make sure this is a pipe, only needs to be called once."
 				/channel ch "when a client sets a channel, it is sent to bridge using /channel name"
-				/local pipe-server
+				/hold
+				/reset "If used, resets to pipe's data, only meaningfull when its currently in hold mode." 
+				/local pipe-server destination function process data
 			][
 				vin ["liquid/" plug/valve/type "[" plug/sid "]/fill()"]
+
+
 
 				; revised default method creates a container type plug, instead of a pipe.
 				; usage indicates that piping is not always needed, and creates a processing overhead
@@ -3028,90 +3094,139 @@ slim/register [
 				; of graphs, since graphs are often refinements of prior nodes.  so in that optic,
 				; allowing us to use data and then modifying it according to local data makes
 				; a lot of sense.
-				
-				
-				; set channel to operate on. (none! by default)
-				channel: any [ ch plug/channel ]
-				
-				;?? channel
-				
-				
-				; NOTE: we enforce bridge pipe mode automatically when filling to a channel
-				;       the channel will then be automatically created in the bridge.
-				;
-				; note that if the pipe-class-server doesn't really manage bridges, then 
-				; it is re-built as a simple !plug server which, by default, returns stored values 
-				; as if they where storage fields.  no processing or inter channel 
-				; signaling will occur.  but all attached plugs will be propagated to.
-				either channel [
-					vprint "CHANNELED Fill"
-
-					; if channel was supplied manually, apply it to plug right now.
-					plug/channel: channel		
-				
-					vprobe plug/channel
-					; make sure your pipe-server-class is a bridge
-					; it will also make sure that a channel with plug/channel exists.
-					pipe-server: plug/valve/pipe/always plug
-					
-					unless all [
-						object? pipe-server: plug/pipe?
-						pipe-server/pipe? = 'bridge
-					][
-						vprint "REPLACING PIPE SERVER WITH A !PLUG BRIDGE"
-						plug/valve/new-pipe/channel/using plug channel !plug
-					]
-					pipe-server: plug/pipe?
-				
-					unless pipe-server/pipe? = 'bridge [
-						to-error "liquid/fill(): cannot fill a channel, pipe is not bridged"
-						
-						; this is EVIL, but ensure liquid stability.
-						; from this point on, the pipe server can only be attached to by channeled pipe clients.
-						;
-						; it also means that custom pipe servers not expecting to be used as bridges may CORRUPT
-						; the liquid.
-						;
-						; the default plug, though, will hapilly return the channel as-is, so this default behaviour
-						; is quite usefull.
-						plug/pipe?: 'bridge
-					]
-					
-					vprint "Defining Channel"
-					;pipe-server/valve/define-channel pipe-server channel
-					
-					; in bridge-mode we need to remember WHO signals data, cause each
-					; data source is interpreted differently by the bridge process()
-					pipe-server/mud: reduce [channel reduce [mud]]
-					
-					pipe-server/valve/on-channel-fill pipe-server
+				;-------------------------
+				either hold [
+					;----------------------------------
+					; hold  mode
+					;----------------------------------
+					plug/holding?: true
+					plug/mud: mud
+					plug/valve/dirty plug
 				][
-					;--------------------------
-					; unchanneled fill
-					;--------------------------
-					; be carefull, if your pipe-class-server is a bridge and the plug doesn't have its 
-					; channel set, an error will be raised eventually, since the bridge will require a channel name.
-					pipe-server: any [
-						; enforce this to be a pipe
-						all [pipe plug/valve/pipe/always plug]
-						
-						; get our pipe (or ourself)
-						all [plug/valve/pipe plug]
-						
-						; or convert this plug into a simple container
-						all [plug/pipe?: 'container plug]
+					;----------------------------------
+					; normal mode
+					;----------------------------------
+					
+					; set channel to operate on. (none! by default)
+					channel: any [ ch plug/channel ]
+					
+					
+					;----
+					; if plug was currently on hold, we MUST reset it so the fill propagates properly.
+					;
+					; if we do not do this, we end up with a deadlock since the pipe server is already dirty,
+					; (and doesn't propagate) but we are clean, so OUR dependencies, never get to trigger a cleanup.
+					; 
+					; the pipe server in this situation never gets cleaned up and the holding system effectively 
+					; breaks messaging.
+					; if the plug is already dirty, then nothin occurs, since our dependencies are probably also 
+					; dirty and the instigate will go up to the pipe server.
+					;---
+					if plug/holding? [
+						plug/holding?: false
+						plug/valve/dirty plug
 					]
 					
-					if pipe-server/pipe? = 'bridge [
-						to-error "liquid/fill(): pipe-server is a bridge but no fill channel was specified"
+					;?? channel
+					
+					
+					; NOTE: we enforce bridge pipe mode automatically when filling to a channel
+					;       the channel will then be automatically created in the bridge.
+					;
+					; note that if the pipe-class-server doesn't really manage bridges, then 
+					; it is re-built as a simple !plug server which, by default, returns stored values 
+					; as if they where storage fields.  no processing or inter channel 
+					; signaling will occur.  but all attached plugs will be propagated to.
+					either channel [
+						vprint "CHANNELED Fill"
+	
+						; if channel was supplied manually, apply it to plug right now.
+						plug/channel: channel		
+					
+						vprobe plug/channel
+						; make sure your pipe-server-class is a bridge
+						; it will also make sure that a channel with plug/channel exists.
+						pipe-server: plug/valve/pipe/always plug
+						
+						unless all [
+							object? pipe-server: plug/pipe?
+							pipe-server/pipe? = 'bridge
+						][
+							vprint "REPLACING PIPE SERVER WITH A !PLUG BRIDGE"
+							plug/valve/new-pipe/channel/using plug channel !plug
+						]
+						pipe-server: plug/pipe?
+					
+						unless pipe-server/pipe? = 'bridge [
+							to-error "liquid/fill(): cannot fill a channel, pipe is not bridged"
+							
+							; this is EVIL, but ensure liquid stability.
+							; from this point on, the pipe server can only be attached to by channeled pipe clients.
+							;
+							; it also means that custom pipe servers not expecting to be used as bridges may CORRUPT
+							; the liquid.
+							;
+							; the default plug, though, will hapilly return the channel as-is, so this default behaviour
+							; is quite usefull.
+							plug/pipe?: 'bridge
+						]
+						
+						vprint "Defining Channel"
+						;pipe-server/valve/define-channel pipe-server channel
+						
+						; in bridge-mode we need to remember WHO signals data, cause each
+						; data source is interpreted differently by the bridge process()
+						pipe-server/mud: reduce [channel reduce [mud]]
+						
+						pipe-server/valve/on-channel-fill pipe-server
+					][
+						;--------------------------
+						; unchanneled fill
+						;--------------------------
+						; be careful, if your pipe-class-server is a bridge and the plug doesn't have its 
+						; channel set, an error will be raised eventually, since the bridge will require a channel name.
+						pipe-server: any [
+							; enforce this to be a pipe
+							all [pipe plug/valve/pipe/always plug]
+							
+							; get our pipe (or ourself)
+							all [plug/valve/pipe plug]
+							
+							; or convert this plug into a simple container
+							all [plug/pipe?: 'container plug]
+						]
+						
+						if pipe-server/pipe? = 'bridge [
+							to-error "liquid/fill(): pipe-server is a bridge but no fill channel was specified"
+						]
+						pipe-server/mud: mud
 					]
-					pipe-server/mud: mud
+					pipe-server/valve/dirty pipe-server
+					;plug/valve/dirty plug
+					
+					;probe pipe-server/mud
 				]
-				pipe-server/valve/dirty pipe-server
-				;plug/valve/dirty plug
-				vout
 				
-				;probe pipe-server/mud
+				if plug/circulate [
+					foreach [ destination  process ] plug/circulate [
+						data: any [
+							all [
+								function? :process
+								;----
+								; the function allows you to change the data in the target's format
+								; it receives the source and destination plugs, as well as the mud given to fill()
+								;
+								; this way the function can change how it works based on some property of the source
+								; or destination, whichever works best in your system.
+								data: process plug destination mud
+							]
+							mud
+						]
+						destination/valve/fill destination data
+					]
+				]
+				
+				vout
 				
 				; just a handy shortcut for some uses.
 				mud
@@ -3270,14 +3385,14 @@ slim/register [
 				plug
 			][
 				vin ["liquid/" plug/valve/type "[" plug/sid "]/propagate?()"]
-				vprint ["dirty?  " plug/dirty? ]
-				vprint ["frozen? " plug/frozen? ]
+				;vprint ["dirty?  " plug/dirty? ]
+				;vprint ["frozen? " plug/frozen? ]
 				do?: not not all [
 					not plug/dirty? 
 					not plug/frozen?
 				]
 				
-				v?? do?
+				;v?? do?
 				vout
 				
 				do?
@@ -3336,6 +3451,9 @@ slim/register [
 						bridge [
 							foreach [ channel observers ] plug/observers [
 								foreach observer observers [
+								
+									observer/holding?: false
+								
 									; make sure we ignore piped clients which aren't part of that pipe
 									; its actually a linking error.
 									if any [
@@ -3351,6 +3469,9 @@ slim/register [
 						#[true] [
 							vprint "PROPAGATING PIPE SERVER!@"
 							foreach observer plug/observers [
+								
+								observer/holding?: false
+								
 								; make sure we ignore piped clients which aren't part of that pipe
 								; its actually a linking error.
 								if any [
@@ -3363,6 +3484,7 @@ slim/register [
 						]
 					][
 						foreach observer plug/observers [
+							observer/holding?: false
 							observer/valve/dirty observer
 						]
 					]
@@ -3566,18 +3688,19 @@ slim/register [
 			;---------------------
 			purify: func [
 				plug [object!]
-				/stale "Tells the purify method that the current liquid is stale and must be recovered or an error propagated"
+				;/stale "Tells the purify method that the current liquid is stale and must be recovered or an error propagated"
 			][
-				if stale [
+				;if stale [
 					;print "plug is stale!:"
 					; <FIXME> propagate stale state !!!
-				]
+				;]
 				;print ["purify: "sid " : " (not none? stale) " " plug/liquid]
 				; by default we will only stay dirty if stale was specified.
 				; this allows us to make filter blocks which do not process until credentials
 				; are met and the plug will continue to try to evaluate until its 
 				; satisfied.
-				(not none? stale)
+				;(not none? stale)
+				false
 			]
 
 
@@ -3641,16 +3764,21 @@ slim/register [
 							
 							; we are a pipe client, get its data
 							object? pipe [
-								either plug/channel [
-									vprint "BRIDGE CLIENT"
-									;vprint "channeled client"
-									;vprint ["required channel: " plug/channel]
-									plug/liquid: pipe/valve/cleanup/channel pipe plug/channel
-									;vprint "liquid received: "
-									;vprobe plug/liquid
+								either plug/holding? [
+									; check if plug is holding, in such a case, we don't defer to our pipe!
+									plug/liquid: plug/mud
 								][
-									vprint "STANDARD PIPE CLIENT"
-									plug/liquid: pipe/valve/cleanup pipe
+									either plug/channel [
+										vprint "BRIDGE CLIENT"
+										;vprint "channeled client"
+										;vprint ["required channel: " plug/channel]
+										plug/liquid: pipe/valve/cleanup/channel pipe plug/channel
+										;vprint "liquid received: "
+										;vprobe plug/liquid
+									][
+										vprint "STANDARD PIPE CLIENT"
+										plug/liquid: pipe/valve/cleanup pipe
+									]
 								]
 							]
 							
