@@ -1180,6 +1180,8 @@ slim/register [
 					observer/layers: copy []
 				]
 				
+				vprobe length? subordinate/layers
+				
 				; here we assume your are providing proper plugs. 
 				; you can only link empty globs or stack globs. 
 				; If you link (the observer is) a gel glob, you are effectively 
@@ -1264,277 +1266,277 @@ slim/register [
 				;plug/input/offset/valve/fill plug/input/offset 0x0
 				vout/tags [cleanse]
 			]
-
-			;--------------------
-			;-    feel[]
-			;--------------------
-			feel: context [
-				;--------------------
-				;-        on-key()
-				;--------------------
-				; triggered if focus is false or if it returns false and the mouse is over the item 
-				;--------------------
-				on-key: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					; does this consume the event? (some keys could be considered control keys later on... needs more reflection)
-					true
-				]
-
-
-				;--------------------
-				;-        on-type()
-				;--------------------
-				; this is used when glob has focus
-				;--------------------
-				on-type: func [
-					glob [object!]
-					;canvas [object!]
-					event
-					;offset  [pair!]  "precalculated position removing any offset, origin"
-				][
-					
-					; does this consume the event? (some keys could be considered control keys later on... needs more reflection)
-					true
-				]
-				
-				
-				
-				;-----------------
-				;-        on-scroll()
-				;-----------------
-				on-scroll: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vin [{"" glob/valve/type "[" glob/sid "]/ON-SCROLL()}]
-					vout
-				]
-				
-				
-				
-				
-	
-				
-				;--------------------
-				;-        on-over()
-				;--------------------
-				; when the mouse goes from elsewhere TO this item
-				;--------------------
-				on-over: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vprint ["" glob/valve/type "[" glob/sid "]/ON-OVER()"]
-					;false
-					vout
-				]
-				
-				
-				;--------------------
-				;-        on-top()
-				;--------------------
-				; when the mouse continues hovering over the item
-				;--------------------
-				on-top: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vprint ["" glob/valve/type "[" glob/sid "]/ON-TOP()"]
-					;false
-					vout
-				]
-				
-				
-				;--------------------
-				;-        on-away()
-				;--------------------
-				; when the hover leaves the item
-				; on-away() and on-over() are ALWAYS called in pair.
-				;--------------------
-				on-away: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vprint ["" glob/valve/type "[" glob/sid "]/ON-AWAY()"]
-					;false
-					vout
-				]
-				
-				
-				;--------------------
-				;-        pick?()
-				;--------------------
-				; return true IF this item can be picked for drag and drop.
-				; 
-				; if so, drag events occur.
-				; 
-				; otherwise normal hover continues and on select is called instead
-				;--------------------
-				pick?: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					false
-				]
-				
-
-
-				;--------------------
-				;-        on-select()
-				;--------------------
-				; only triggered when pick? isn't true
-				;--------------------
-				on-select: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vin/tags ["glob/valve/feel/on-select()"] [on-drag]
-					
-					vout/tags [on-drag]
-				]
-				
-
-				;--------------------
-				;-        on-release()
-				; occurs when mouse was released but no drag occured
-				;--------------------
-				on-release: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vin/tags ["glob/valve/feel/on-select()"] [on-drag]
-					
-					vout/tags [on-drag]
-				]
-				
-				
-				;-----------------
-				;-        on-pick()
-				;-----------------
-				; called when mouse is pressed over item and pick? returned true
-				;-----------------
-				on-pick: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vin [{glob/valve/feel/on-pick()}]
-					vout
-				]
-				
-				
-				
-				;--------------------
-				;-        on-drag()
-				;--------------------
-				on-drag: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vin "glob/valve/feel/on-drag()"
-					
-					vout
-					false
-				]
-				
-				
-				
-				;--------------------
-				;-        on-drop()
-				;--------------------
-				; only called when mouse is released and drag occured (complements on-pick)
-				;--------------------
-				on-drop: func [
-					glob "the glob object itself"
-					canvas "face this glob was viewed from (a glob can be used on several canvases)"
-					event "original view event, note event/offset is window related"
-					offset "offset relative to canvas"
-				][
-					vin [{glob/valve/feel/on-drop()}]
-					vout
-					false
-				]
-				
-				
-				
-				;--------------------
-				;-        on-down()
-				;--------------------
-				on-down: func [
-					""
-					gadget
-					canvas
-					event
-				][
-					false
-				]
-
-
-				;--------------------
-				;-        on-up()
-				; up is called everytime a mouse button is released, in all cases.
-				;--------------------
-				on-up: func [
-					""
-					gadget
-					canvas
-					event
-				][
-					false
-				]
-
-
-				;--------------------
-				;-        on-alt-down()
-				;--------------------
-				on-alt-down: func [
-					""
-					gadget
-					canvas
-					event
-				][
-					false
-				]
-
-
-				;--------------------
-				;-        on-alt-up()
-				;--------------------
-				on-alt-up: func [
-					""
-					gadget
-					canvas
-					event
-				][
-					false
-				]
-
-
-
-				
-				
-			]
+;
+;			;--------------------
+;			;-    feel[]
+;			;--------------------
+;			feel: context [
+;				;--------------------
+;				;-        on-key()
+;				;--------------------
+;				; triggered if focus is false or if it returns false and the mouse is over the item 
+;				;--------------------
+;				on-key: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					; does this consume the event? (some keys could be considered control keys later on... needs more reflection)
+;					true
+;				]
+;
+;
+;				;--------------------
+;				;-        on-type()
+;				;--------------------
+;				; this is used when glob has focus
+;				;--------------------
+;				on-type: func [
+;					glob [object!]
+;					;canvas [object!]
+;					event
+;					;offset  [pair!]  "precalculated position removing any offset, origin"
+;				][
+;					
+;					; does this consume the event? (some keys could be considered control keys later on... needs more reflection)
+;					true
+;				]
+;				
+;				
+;				
+;				;-----------------
+;				;-        on-scroll()
+;				;-----------------
+;				on-scroll: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vin [{"" glob/valve/type "[" glob/sid "]/ON-SCROLL()}]
+;					vout
+;				]
+;				
+;				
+;				
+;				
+;	
+;				
+;				;--------------------
+;				;-        on-over()
+;				;--------------------
+;				; when the mouse goes from elsewhere TO this item
+;				;--------------------
+;				on-over: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vprint ["" glob/valve/type "[" glob/sid "]/ON-OVER()"]
+;					;false
+;					vout
+;				]
+;				
+;				
+;				;--------------------
+;				;-        on-top()
+;				;--------------------
+;				; when the mouse continues hovering over the item
+;				;--------------------
+;				on-top: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vprint ["" glob/valve/type "[" glob/sid "]/ON-TOP()"]
+;					;false
+;					vout
+;				]
+;				
+;				
+;				;--------------------
+;				;-        on-away()
+;				;--------------------
+;				; when the hover leaves the item
+;				; on-away() and on-over() are ALWAYS called in pair.
+;				;--------------------
+;				on-away: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vprint ["" glob/valve/type "[" glob/sid "]/ON-AWAY()"]
+;					;false
+;					vout
+;				]
+;				
+;				
+;				;--------------------
+;				;-        pick?()
+;				;--------------------
+;				; return true IF this item can be picked for drag and drop.
+;				; 
+;				; if so, drag events occur.
+;				; 
+;				; otherwise normal hover continues and on select is called instead
+;				;--------------------
+;				pick?: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					false
+;				]
+;				
+;
+;
+;				;--------------------
+;				;-        on-select()
+;				;--------------------
+;				; only triggered when pick? isn't true
+;				;--------------------
+;				on-select: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vin/tags ["glob/valve/feel/on-select()"] [on-drag]
+;					
+;					vout/tags [on-drag]
+;				]
+;				
+;
+;				;--------------------
+;				;-        on-release()
+;				; occurs when mouse was released but no drag occured
+;				;--------------------
+;				on-release: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vin/tags ["glob/valve/feel/on-select()"] [on-drag]
+;					
+;					vout/tags [on-drag]
+;				]
+;				
+;				
+;				;-----------------
+;				;-        on-pick()
+;				;-----------------
+;				; called when mouse is pressed over item and pick? returned true
+;				;-----------------
+;				on-pick: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vin [{glob/valve/feel/on-pick()}]
+;					vout
+;				]
+;				
+;				
+;				
+;				;--------------------
+;				;-        on-drag()
+;				;--------------------
+;				on-drag: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vin "glob/valve/feel/on-drag()"
+;					
+;					vout
+;					false
+;				]
+;				
+;				
+;				
+;				;--------------------
+;				;-        on-drop()
+;				;--------------------
+;				; only called when mouse is released and drag occured (complements on-pick)
+;				;--------------------
+;				on-drop: func [
+;					glob "the glob object itself"
+;					canvas "face this glob was viewed from (a glob can be used on several canvases)"
+;					event "original view event, note event/offset is window related"
+;					offset "offset relative to canvas"
+;				][
+;					vin [{glob/valve/feel/on-drop()}]
+;					vout
+;					false
+;				]
+;				
+;				
+;				
+;				;--------------------
+;				;-        on-down()
+;				;--------------------
+;				on-down: func [
+;					""
+;					gadget
+;					canvas
+;					event
+;				][
+;					false
+;				]
+;
+;
+;				;--------------------
+;				;-        on-up()
+;				; up is called everytime a mouse button is released, in all cases.
+;				;--------------------
+;				on-up: func [
+;					""
+;					gadget
+;					canvas
+;					event
+;				][
+;					false
+;				]
+;
+;
+;				;--------------------
+;				;-        on-alt-down()
+;				;--------------------
+;				on-alt-down: func [
+;					""
+;					gadget
+;					canvas
+;					event
+;				][
+;					false
+;				]
+;
+;
+;				;--------------------
+;				;-        on-alt-up()
+;				;--------------------
+;				on-alt-up: func [
+;					""
+;					gadget
+;					canvas
+;					event
+;				][
+;					false
+;				]
+;
+;
+;
+;				
+;				
+;			]
 
 		]
 		
@@ -1760,7 +1762,6 @@ slim/register [
 	]
 ]
 
-none
 
 ;------------------------------------
 ; We are done testing this library.
