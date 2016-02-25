@@ -468,8 +468,14 @@ slim/register [
 		vout
 	]
 	
+	;--------------------------
+	;-     !empty?:
+	;
+	; will be true only when we connect a series and its empty.
+	;--------------------------
+	!empty?: processor/safe 'empty? :empty?
 
-
+	
 	
 	;--------------------------
 	;-     !get-in-ctx -->
@@ -510,9 +516,73 @@ slim/register [
 	]
 
 
-		
+
+	;-                                                                                                       .
+	;-----------------------------------------------------------------------------------------------------------
+	;
+	;- PIPE MASTERS
+	;
+	;-----------------------------------------------------------------------------------------------------------
+	;--------------------------
+	;-         !int-string:
+	;
+	; is used to normalize an input or a piped value into a integer value, in string format
+	;
+	; note that being a general purpose version of this plug, it may be a bit slow.
+	;--------------------------
+	!int-string: make !plug [
 	
+		min-value: 1
+		max-value: none
+		
+		valve: make valve [
+		
+			pipe-server-class: make !plug [
+			
+				min-value: 0
+				max-value: none
+			
+				valve: make valve [
+					type: '!int-string-pipe-server
+					
+					;--------------------------
+					;-        purify()
+					;--------------------------
+					purify: funcl [
+						plug
+					][
+;						vin "purify()"
+
+						pl: plug/liquid
+
+						unless integer? pl [
+							pl: any [
+								attempt [to-integer pl]
+								attempt [to-integer mold pl]
+								0
+							]
+						]
+						
+						all [
+							plug/min-value
+							pl: max plug/min-value pl
+						]
+						all [
+							plug/max-value
+							pl: min plug/max-value pl
+						]						
+;						vout
+;						?? pl
+						plug/liquid: to-string pl
+						false
+					]
+				]
+			]
+		]
+	]
 ]
+
+
 
 ;------------------------------------
 ; We are done testing this library.
