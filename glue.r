@@ -476,6 +476,20 @@ slim/register [
 	!empty?: processor/safe 'empty? :empty?
 
 	
+	;--------------------------
+	;-     !filled?:
+	;
+	; returns true only when a series is not empty? 
+	; returns false for non series values.
+	;--------------------------
+	!filled?: processor 'filled? [
+		plug/liquid: all [
+			series? serie: pick data 1
+			not empty? serie
+		]
+	]
+	
+	
 	
 	;--------------------------
 	;-     !get-in-ctx -->

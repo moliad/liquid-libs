@@ -1877,7 +1877,7 @@ slim/register [
 		;-                                                                                                       .
 		;-----------------------------------------------------------------------------------------------------------
 		;
-		;-         VALVE (CLASS)
+		;-       VALVE (CLASS)
 		;
 		;-----------------------------------------------------------------------------------------------------------
 		valve: make object! [
@@ -3275,7 +3275,7 @@ slim/register [
 			;---------------------
 			dirty: func [
 				plug "plug to set dirty" [object!]
-				/always "do not follow stainless? as dirty is being called within a processing operation.  prevent double process, deadlocks"
+				/always "do not follow stainless? as dirty is being called within a processing operation.  Prevent double process, deadlocks."
 			][
 				vin ["liquid/" plug/valve/type "[" plug/sid "]/dirty()"]
 				; being stainless? forces a cleanup call right after being set dirty...
@@ -3285,7 +3285,6 @@ slim/register [
 				;
 				; it can be usefull to set a user observed plug so that any
 				; changes to the plugs, gets refreshed in an interactive UI..
-				vprint "DIRTY"
 				
 				either all[
 					plug/stainless?
@@ -3466,10 +3465,9 @@ slim/register [
 							]
 						]
 						
-						#[true] [
-							vprint "PROPAGATING PIPE SERVER!@"
+						#[true][
+							vprint "PROPAGATING PIPE SERVER!"
 							foreach observer plug/observers [
-								
 								observer/holding?: false
 								
 								; make sure we ignore piped clients which aren't part of that pipe
