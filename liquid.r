@@ -930,7 +930,7 @@ slim/register [
 	
 	
 	;--------------------------
-	;-     insubordinate()
+	;-    insubordinate()
 	;--------------------------
 	; purpose:  high-level api for the valve's insubordinate method.
 	;
@@ -1020,7 +1020,6 @@ slim/register [
 		
 		; parse plug/subordinates
 		context blk
-		
 	]
 
 	
@@ -1100,12 +1099,10 @@ slim/register [
 	][
 		all [
 			plug? get/any 'model
-			
 			in model 'subordinates
 			none? model/subordinates
 			in model 'observers
 			none? model/observers
-
 			model
 		]
 	]
@@ -1478,7 +1475,7 @@ slim/register [
 	;
 	; returns:  a new plug class.
 	;
-	; notes:    an updated version of process(), uses formulate
+	; notes:    an updated version of process(), uses formulate()
 	;
 	; tests:    
 	;--------------------------
@@ -3285,19 +3282,18 @@ slim/register [
 				;
 				; it can be usefull to set a user observed plug so that any
 				; changes to the plugs, gets refreshed in an interactive UI..
-				
 				either all[
 					plug/stainless?
 					not always
 				][
 					plug/dirty?: true
-					cleanup plug
-					if propagate? plug [
-						propagate plug
+					plug/valve/cleanup plug
+					if plug/valve/propagate? plug [
+						plug/valve/propagate plug
 					]
 				][
-					if propagate? plug [
-						propagate/dirty plug
+					if plug/valve/propagate? plug [
+						plug/valve/propagate/dirty plug
 					]
 				]
 				

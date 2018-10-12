@@ -186,7 +186,7 @@ slim/register [
 		
 		
 		;--------------------------
-		;-             attach()
+		;-         attach()
 		;--------------------------
 		; purpose:  attach the config tag TO an external pipe.
 		;
@@ -214,7 +214,7 @@ slim/register [
 		
 		
 		;--------------------------
-		;-             get-plug()
+		;-         get-plug()
 		;--------------------------
 		; purpose:  retrieve a plug from the config, so we can attach to it dynamically.
 		;
