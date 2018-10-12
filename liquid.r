@@ -607,6 +607,8 @@ slim/register [
 		/pipe "same as piped"
 		/link plugs [block! object!]
 		/label lbl [word!] "specify label to link to (no use unless /link is also provided)"
+		/linked-before "setup resolve-links?"
+		/linked-after "setup resolve-links?"
 		/local plug
 	][
 		vin ["liquify('" type/valve/type ")"]
@@ -614,6 +616,13 @@ slim/register [
 		
 		; unify plugs datatype
 ;		plugs: compose [(plugs)]
+
+		if all [
+			linked-before
+			linked-after
+		][
+			to-error "Cannot use linked-before and linked-after at the same time."
+		]
 
 		if object? plugs [
 			plugs: compose [(plugs)]
@@ -647,6 +656,15 @@ slim/register [
 ;				]
 ;			]
 		]
+		
+		if linked-before [
+			plug/resolve-links?: 'LINK-AFTER
+		]
+		if linked-before [
+			plug/resolve-links?: 'LINK-BEFORE
+		]
+
+		
 		vout
 		first reduce [plug plug: plugs: data: none] ; clean GC returnf
 	]
@@ -1803,7 +1821,7 @@ slim/register [
 		; tells pipe clients that they should act as a normal
 		; dependency plug even if receiving pipe events.
 		;
-		; note that this ALSO provides the same featues that linked-containers?
+		; note that this ALSO provides the same features that linked-containers?
 		; used to provide, with the difference that we can now control how the 
 		; links and/or mud are managed
 		;
@@ -1848,7 +1866,7 @@ slim/register [
 		
 		
 		;--------------------------
-		;-             holding?:
+		;-       holding?:
 		;
 		; allows fill/hold to stick until the pipe causes propagation.
 		;
@@ -1903,7 +1921,7 @@ slim/register [
 			;-----------------
 			;-        pipe-server-class:
 			; this is set to !plug just after the class is created.
-			; put the class you want to use automatically within you plug derivatives
+			; put the class you want to use automatically within your plug derivatives
 			pipe-server-class: none
 			
 			
@@ -2839,7 +2857,7 @@ slim/register [
 				/local blk pipe-server client-data
 			][
 				
-				vin ["liquid/" client/valve/type "[" client/sid "]/attach()"]
+				vin ["liquid/" client/valve/type "[" client/sid "]/attach()"] ; "
 				
 				if keep [
 					client-data: content client
