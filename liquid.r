@@ -2,8 +2,8 @@ REBOL [
 	; -- Core Header attributes --
 	title: "liquid | dataflow management "
 	file: %liquid.r
-	version: 1.4.1
-	date: 2015-06-15
+	version: 1.4.2
+	date: 2019-01-14
 	author: "Maxim Olivier-Adlhoch"
 	purpose: {Dataflow processing kernel.  Supports many computing modes and lazy programming..}
 	web: http://www.revault.org/modules/liquid.rmrk
@@ -12,14 +12,14 @@ REBOL [
 
 	; -- slim - Library Manager --
 	slim-name: 'liquid
-	slim-version: 1.2.7
+	slim-version: 1.3.1
 	slim-prefix: none
 	slim-update: http://www.revault.org/downloads/modules/liquid.r
 
 	; -- Licensing details  --
-	copyright: "Copyright © 2015 Maxim Olivier-Adlhoch"
+	copyright: "Copyright © 2019 Maxim Olivier-Adlhoch"
 	license-type: "Apache License v2.0"
-	license: {Copyright © 2015 Maxim Olivier-Adlhoch
+	license: {Copyright © 2019 Maxim Olivier-Adlhoch
 
 	Licensed under the Apache License, Version 2.0 (the "License");
 	you may not use this file except in compliance with the License.
@@ -292,6 +292,15 @@ REBOL [
 		v1.4.1 - 2015-06-15
 			-added fill/HOLD mechanism which allows pipe clients to temporarily ignore pipe server.
 			-attach stub, now returns the attaching plug
+			
+		!!! A FEW UNVERSIONED CHANGES OCCUR HERE! (will be in Git).
+			
+		v1.4.2 - 2019-01-13
+			- when a plug is set to 'RESOLVE-LINKS? (any setup), it no loger detaches 
+			  from pipe or container, when /RESET option is used on VALVE/LINK .  
+			  This is because the plug is EXPECTING the extra data, as if an extra link was setup.
+			- renamed 'CONTAINER to 'CONTAINS
+			- formulate() now shallow copies the input spec, so it will not affect a given block.
 	}
 	;-  \ history
 
@@ -1236,7 +1245,7 @@ slim/register [
 
 	
 	;--------------------------
-	;-    container()
+	;-    contains()
 	;--------------------------
 	; purpose: just a quick way to create a filled container plug
 	;
@@ -1246,7 +1255,9 @@ slim/register [
 	;
 	; notes:   uses !default-plug
 	;--------------------------
-	container: func [
+	container:  ; deprecated name
+	;--------------------------
+	contains: func [
 		data "Any data you want to put in the filled plug."
 	][
 		vin "liquid/container()"
@@ -1272,9 +1283,12 @@ slim/register [
 	;
 	; returns:  
 	;
-	; notes:    -If the spec is a block and you put a block as the first item of the given spec, it will be added to the 
-	;            item of the plug directly. This allows you to add variables within the instance data.  obviously this 
-	;            block is removed from the spec when generating the valve.
+	; notes:    -If the spec is a block it is used as the new model's valve specification.
+	;
+	;            If it contains a block as its first item, this block will be use as the PLUG specification,
+	;            so you can add new instance variables to the plug there (when the valve needs them).
+	;
+	;            This block is removed from the spec when generating the valve.
 	;
 	;           -If the spec is an object, we will try to detect if the object is a valve or a plug.
 	;            The plug or valve are expected to be partial... whatever is specified will overwrite the given values
@@ -1292,6 +1306,10 @@ slim/register [
 		
 		
 		source-is-plug?: false
+		
+		if block? spec [
+			spec: copy spec
+		]
 		
 		;-----------
 		; get source valve
@@ -2371,7 +2389,10 @@ slim/register [
 				]
 				
 				if reset [
-					observer/valve/detach observer
+					; 2019-01-13
+					unless  observer/resolve-links? [
+						observer/valve/detach observer
+					]
 					observer/valve/unlink observer
 					either label [
 						observer/valve/link/label observer subordinate lbl 
@@ -2990,7 +3011,6 @@ slim/register [
 					
 					;we set the value of the pipe we where attached to
 					plug/liquid: pval
-					
 				][
 					plug/pipe?: none
 				]
@@ -3002,8 +3022,6 @@ slim/register [
 					plug/valve/dirty plug
 				]
 				 
-				
-				
 				
 				; make sure dependencies are updated
 				plug/valve/dirty plug
