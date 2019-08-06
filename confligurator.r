@@ -212,6 +212,28 @@ slim/register [
 			plug
 		]
 		
+		;--------------------------
+		;-         attach-any()
+		;--------------------------
+		; purpose:  
+		;
+		; inputs:   
+		;
+		; returns:  
+		;
+		; notes:    
+		;
+		; to do:    
+		;
+		; tests:    
+		;--------------------------
+		attach-any: funcl [
+		][
+			vin "attach-any()"
+		
+			vout
+		]
+		
 		
 		;--------------------------
 		;-         get-plug()
@@ -256,7 +278,8 @@ slim/register [
 	;--------------------------
 	confligure: funcl [
 		spec [block! none!]
-		/cfg confliguration "MUST be a !conflig object... a normal !config object is not supported"
+		/name appname [word! none!] "Application name"
+		/cfg confliguration "MUST be a !CONFLIG  (note the 'L') object... a normal !config object is not supported"
 		/no-snapshot
 	][
 		vin "confligure()"
@@ -265,7 +288,10 @@ slim/register [
 			make !conflig []
 		]
 		
-		apply :configure [spec true config no-snapshot]
+		;v?? spec
+		config: apply :configure [spec name appname true config no-snapshot]
+		
+		;v?? config/tags
 		
 		vout
 		config
